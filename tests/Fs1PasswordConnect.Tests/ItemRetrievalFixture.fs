@@ -1,33 +1,45 @@
 ﻿namespace Fs1PasswordConnect.Tests
 
-open System
-open System.IO
-open System.Threading
-open System.Text
 open Swensen.Unquote
 open FSharpPlus
+open FSharpPlus.Data
 open FSharpPlus.Lens
 open TechTalk.SpecFlow
-open TechTalk.SpecFlow.Assist
+open Fleece.SystemTextJson
 
-open Fs1PasswordConnect
+open Fs1PasswordConnect.ConnectClient
 
 [<Binding>]
 type ItemRetrievalFixture() =
-    let mutable result = ""
-    let mutable receivedEndpointCalls = []
+    let mutable result = box ""
+    let mutable receivedCalls = []
     let mutable items = Map.empty
     let mutable vaults = Map.empty
     let mutable responses = Map.empty
-    let client = { new ConnectClient() with
-        member _.ProcessRequest url =
-            receivedEndpointCalls <- url::receivedEndpointCalls
+    let mutable token = ""
+    let mutable host = ""
+    let requestProcessor { Url = url; Headers = headers } = async {
+        receivedCalls <- url::receivedCalls
+
+        let expectedHeaders = [ "Authorization", $"Bearer {token}" ]
+        headers =! expectedHeaders
+
+        return
             match Map.tryFind url responses with
-            | Some r -> r
+            | Some r -> { Body = r; StatusCode = 200 }
             | None -> failwith $"No response configured for url: {url}"
     }
+    let mutable client = ConnectClient(requestProcessor, { Host = ConnectHost ""; Token = ConnectToken "" })
+    let run (x : ResultT<Async<Result<_, ConnectError>>>) =
+        match ResultT.run x |> Async.RunSynchronously with
+        | Ok x -> result <- x
+        | Error e -> result <- e.ToString()
+    let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (h : string) (t : string) =
+        host <- h.TrimEnd('/')
+        token <- t
+        client <- ConnectClient(requestProcessor, { Host = ConnectHost h; Token = ConnectToken t })
     let [<Given>] ``the server returns the following body for call to url '(.*)'`` (url : string) (body : string) =
-        responses <- Map.add (if url.StartsWith "/" then url else "/" + url) body responses
+        responses <- Map.add url body responses
     let [<Given>] ``item with ID '(.*)' in vault with ID '(.*)'`` (itemId : string) (vaultId : string) body =
         items <- Map.add itemId body items
         vaults <-
@@ -35,28 +47,42 @@ type ItemRetrievalFixture() =
             | Some vault -> itemId::vault
             | None -> [itemId]
             |> Map.add vaultId <| vaults
-        ``the server returns the following body for call to url '(.*)'`` $"vaults/{vaultId}/items/{itemId}" body
-    let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (host : string) (token : string) = ()
+        ``the server returns the following body for call to url '(.*)'`` $"{host}/v1/vaults/{vaultId}/items/{itemId}" body
     let [<When>] ``the user requests item with ID '(.*)' in vault with ID '(.*)'`` (itemId : string) (vaultId : string) =
-        result <- client.GetItem(VaultId vaultId, ItemId itemId)
+        client.GetItem(VaultId vaultId, ItemId itemId) |> run
     let [<When>] ``the user requests item with title '(.*)' in vault with ID '(.*)'`` (itemTitle : string) (vaultId : string) =
-        result <- client.GetItem(VaultId vaultId, ItemTitle itemTitle)
+        client.GetItem(VaultId vaultId, ItemTitle itemTitle) |> run
     let [<When>] ``the user requests item with ID '(.*)' in vault with title '(.*)'`` (itemId : string) (vaultTitle : string) =
-        result <- client.GetItem(VaultTitle vaultTitle, ItemId itemId)
+        client.GetItem(VaultTitle vaultTitle, ItemId itemId) |> run
     let [<When>] ``the user requests item with title '(.*)' in vault with title '(.*)'`` (itemTitle : string) (vaultTitle : string) =
-        result <- client.GetItem(VaultTitle vaultTitle, ItemTitle itemTitle)
-    let [<Then>] ``the following server endpoint should be called '(.*)'`` (url : string) =
-        List.contains url receivedEndpointCalls
+        client.GetItem(VaultTitle vaultTitle, ItemTitle itemTitle) |> run
+    let [<Then>] ``the following url should be called '(.*)'`` (url : string) =
+        List.contains url receivedCalls
     let [<Then>] ``the client should return item with ID '(.*)'`` (itemId : string) =
-        result =! items.[itemId]
+        match parseJson items.[itemId] with
+        | Ok (expected : Item) -> result :?> Item =! expected
+        | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
     let [<When>] ``the user requests all items in vault with ID '(.*)'`` (vaultId : string) =
-        result <- client.GetItemsInVault(VaultId vaultId)
+        client.GetItems(VaultId vaultId) |> run
     let [<When>] ``the user requests all items in vault with title '(.*)'`` (vaultTitle : string) =
-        result <- client.GetItemsInVault(VaultTitle vaultTitle)
+        client.GetItems(VaultTitle vaultTitle) |> run
     let [<Then>] ``the client should return all items in vault with ID '(.*)'`` (vaultId : string) =
-        let url = $"vaults/{vaultId}/items"
-        match Map.tryFind ("/" + url) responses with
+        let url = $"{host}/v1/vaults/{vaultId}/items"
+        match Map.tryFind url responses with
         | Some expected ->
-            result =! expected
+            match parseJson expected with
+            | Ok (expectedItems : ItemInfo list) ->
+                result :?> ItemInfo list =! expectedItems
+            | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
         | None -> failwith $"No response configured for url: {url}"
-
+    let [<When>] ``the user requests all vaults`` () =
+        client.GetVaults() |> run
+    let [<Then>] ``the client should return all vaults`` () =
+        let url = $"{host}/v1/vaults"
+        match Map.tryFind url responses with
+        | Some expected ->
+            match parseJson expected with
+            | Ok (expectedVaults : VaultInfo list) ->
+                result :?> VaultInfo list =! expectedVaults
+            | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
+        | None -> failwith $"No response configured for url: {url}"

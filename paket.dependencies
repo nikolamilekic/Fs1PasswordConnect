@@ -8,6 +8,8 @@ nuget GitInfo copy_local: true
 nuget Microsoft.SourceLink.GitHub copy_local: true
 nuget Milekic.YoLo storage: symlink
 nuget FSharpPlus
+nuget Fleece.SystemTextJson
+nuget FSharp.Data
 
 //Testing
 nuget Unquote

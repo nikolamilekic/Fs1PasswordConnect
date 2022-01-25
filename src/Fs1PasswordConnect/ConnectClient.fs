@@ -1,35 +1,152 @@
-﻿namespace Fs1PasswordConnect
+﻿module Fs1PasswordConnect.ConnectClient
 
-open Milekic.YoLo
+open System.Text
+open FSharpPlus.Data
+open Fleece.SystemTextJson
+open Fleece.SystemTextJson.Operators
+open FSharp.Data
+open FSharpPlus
 
-type VaultDesignator =  VaultId of string | VaultTitle of string
-type ItemDesignator = ItemId of string | ItemTitle of string
+type VaultId = VaultId of string
+type VaultTitle = VaultTitle of string
+type VaultInfo = { VaultId : VaultId; VaultTitle : VaultTitle } with
+    static member JsonObjCodec =
+        fun i t -> { VaultId = (VaultId i); VaultTitle = (VaultTitle t) }
+        |> withFields
+        |> jfield "id" (fun { VaultId = (VaultId i) } -> i)
+        |> jfield "name" (fun { VaultTitle = (VaultTitle t) } -> t)
+type ItemId = ItemId of string
+type ItemTitle = ItemTitle of string
+let private vaultStubCodec =
+    (function | JObject o -> VaultId <!> (o .@ "id")
+              | x -> Decode.Fail.objExpected x),
+    (fun (VaultId id) -> jobj [ "id" .= id ])
+type ItemInfo = { ItemId : ItemId; ItemTitle : ItemTitle; VaultId : VaultId } with
+    static member JsonObjCodec =
+        fun i t v -> { ItemId = (ItemId i); ItemTitle = (ItemTitle t); VaultId = v }
+        |> withFields
+        |> jfield "id" (fun { ItemId = (ItemId i) } -> i)
+        |> jfield "title" (fun { ItemTitle = (ItemTitle t) } -> t)
+        |> jfieldWith vaultStubCodec "vault" (fun { VaultId = v } -> v)
+type FieldId = FieldId of string
+type FieldLabel = FieldLabel of string
+type FieldValue = FieldValue of string
+type Field = { FieldId : FieldId; FieldLabel : FieldLabel; FieldValue : FieldValue } with
+    static member JsonObjCodec =
+        fun i l v -> { FieldId = (FieldId i); FieldLabel = (FieldLabel l); FieldValue = (FieldValue v) }
+        |> withFields
+        |> jfield "id" (fun { FieldId = (FieldId i) } -> i)
+        |> jfield "label" (fun { FieldLabel = (FieldLabel l) } -> l)
+        |> jfield "value" (fun { FieldValue = (FieldValue v) } -> v)
+type Item = {
+    ItemId : ItemId
+    ItemTitle : ItemTitle
+    VaultId : VaultId
+    Fields : Field list } with
+    static member JsonObjCodec =
+        fun i t v f -> {
+            ItemId = (ItemId i)
+            ItemTitle = (ItemTitle t)
+            VaultId = v
+            Fields = f
+        }
+        |> withFields
+        |> jfield "id" (fun { Item.ItemId = (ItemId i) } -> i)
+        |> jfield "title" (fun { ItemTitle = (ItemTitle t) } -> t)
+        |> jfieldWith vaultStubCodec "vault" (fun { Item.VaultId = v } -> v)
+        |> jfield "fields" (fun { Fields = f } -> f)
 
-type ConnectClient() =
-    abstract member ProcessRequest : url:string -> string
-    default _.ProcessRequest url = url
+type ConnectError =
+    | CriticalFailure of exn
+    | UnexpectedStatusCode of int
+    | DecodeError of string
+    | UnauthorizedAccess
+    | MissingToken
+    | VaultNotFound
+    | ItemNotFound
 
-    member this.GetVaultIdFromDesignator(vaultDesignator) =
-        match vaultDesignator with
-        | VaultId(id) -> id
-        | VaultTitle title ->
-            let response = this.ProcessRequest($"/vaults/?filter=title eq \"{title}\"")
-            match response with
-            | Regex "\"id\": \"(.*)\"" [ id ] -> id
-            | _ -> ""
-    member this.GetItemIdFromDesignator(vaultDesignator, itemDesignator) =
-        let vaultId = this.GetVaultIdFromDesignator(vaultDesignator)
-        match itemDesignator with
-        | ItemId(id) -> id
-        | ItemTitle title ->
-            let response = this.ProcessRequest($"/vaults/{vaultId}/items?filter=title eq \"{title}\"")
-            match response with
-            | Regex "\"id\": \"(.*)\"" [ id ] -> id
-            | _ -> ""
-    member this.GetItem(vaultDesignator, itemDesignator) =
-        let vaultId = this.GetVaultIdFromDesignator(vaultDesignator)
-        let itemId = this.GetItemIdFromDesignator(VaultId vaultId, itemDesignator)
-        this.ProcessRequest($"/vaults/{vaultId}/items/{itemId}")
-    member this.GetItemsInVault(vaultDesignator) =
-        let vaultId = this.GetVaultIdFromDesignator(vaultDesignator)
-        this.ProcessRequest($"/vaults/{vaultId}/items")
+type ConnectHost = ConnectHost of string
+type ConnectToken = ConnectToken of string
+type ConnectClientSettings = { Host : ConnectHost; Token : ConnectToken }
+type internal Request = { Url : string; Headers : (string * string) list }
+type internal Response = { StatusCode : int; Body : string }
+
+type ConnectClient internal (requestProcessor, settings) =
+    let { Host = (ConnectHost host); Token = (ConnectToken token) } = settings
+    let headers = [ "Authorization", $"Bearer {token}" ]
+    let makeRequest (endpoint : string) = {
+        Url = $"{host.TrimEnd('/')}/v1/{endpoint.TrimStart('/')}"
+        Headers = headers
+    }
+    let lift : (Async<_> -> ResultT<Async<Result<_, ConnectError>>>) = ResultT.lift
+    let hoist : (Result<_, ConnectError> -> ResultT<Async<_>>) = ResultT.hoist
+    let request (endpoint : string) = monad {
+        try return! requestProcessor (makeRequest endpoint) |> lift
+        with exn -> return! Error (CriticalFailure exn) |> hoist
+    }
+
+    static member Make settings =
+        let processRequest { Url = url; Headers = headers } = monad {
+            let! response = Http.AsyncRequest(url, headers = headers)
+            let body =
+                match response.Body with
+                | Text text -> text
+                | Binary binary -> Encoding.UTF8.GetString(binary)
+            return { StatusCode = response.StatusCode; Body = body }
+        }
+        ConnectClient(processRequest, settings)
+    member _.GetVaults() = request "vaults" >>= function
+        | ({ StatusCode = 200; Body = response } : Response) ->
+            match parseJson response with
+            | Ok (vaults : VaultInfo list) -> result vaults
+            | Error error -> Error (DecodeError (error.ToString())) |> hoist
+        | { StatusCode = 401 } -> Error MissingToken |> hoist
+        | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
+    member private _.GetVaultId(VaultTitle title) =
+        request $"vaults/?filter=title eq \"{title}\"" >>= function
+        | ({ StatusCode = 200; Body = response } : Response) ->
+            match parseJson response with
+            | Ok (x : VaultInfo::_) -> result x.VaultId
+            | Ok [] -> Error VaultNotFound |> hoist
+            | Error error -> Error (DecodeError (error.ToString())) |> hoist
+        | { StatusCode = 401 } -> Error MissingToken |> hoist
+        | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
+    member private _.GetItemId(VaultId vaultId, ItemTitle itemTitle) =
+        request $"vaults/{vaultId}/items?filter=title eq \"{itemTitle}\"" >>= function
+        | ({ StatusCode = 200; Body = response } : Response) ->
+            match parseJson response with
+            | Ok (x : ItemInfo::_) -> result x.ItemId
+            | Ok [] -> Error ItemNotFound |> hoist
+            | Error error -> Error (DecodeError (error.ToString())) |> hoist
+        | { StatusCode = 401 } -> Error MissingToken |> hoist
+        | { StatusCode = 404 } -> Error VaultNotFound |> hoist
+        | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
+    member _.GetItem(VaultId vaultId, ItemId itemId) =
+        request $"vaults/{vaultId}/items/{itemId}" >>= function
+        | ({ StatusCode = 200; Body = response } : Response) ->
+            match parseJson response with
+            | Ok (x : Item) -> result x
+            | Error error -> Error (DecodeError (error.ToString())) |> hoist
+        | { StatusCode = 401 } -> Error MissingToken |> hoist
+        | { StatusCode = 403 } -> Error UnauthorizedAccess |> hoist
+        | { StatusCode = 404 } -> Error ItemNotFound |> hoist
+        | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
+    member this.GetItem(vaultTitle, itemId : ItemId) =
+        this.GetVaultId vaultTitle
+        >>= fun vaultId -> this.GetItem(vaultId, itemId)
+    member this.GetItem(vaultId, itemTitle) =
+        this.GetItemId(vaultId, itemTitle)
+        >>= fun itemId -> this.GetItem(vaultId, itemId)
+    member this.GetItem(vaultTitle, itemTitle : ItemTitle) =
+        this.GetVaultId vaultTitle
+        >>= fun vaultId -> this.GetItem(vaultId, itemTitle)
+    member _.GetItems(VaultId vaultId) =
+        request $"vaults/{vaultId}/items" >>= function
+        | ({ StatusCode = 200; Body = response } : Response) ->
+            match parseJson response with
+            | Ok (xs : ItemInfo list) -> result xs
+            | Error error -> Error (DecodeError (error.ToString())) |> hoist
+        | { StatusCode = 401 } -> Error MissingToken |> hoist
+        | { StatusCode = 404 } -> Error VaultNotFound |> hoist
+        | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
+    member x.GetItems(vaultTitle) = x.GetVaultId vaultTitle >>= x.GetItems

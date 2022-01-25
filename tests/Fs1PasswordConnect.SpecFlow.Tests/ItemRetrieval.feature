@@ -1,7 +1,8 @@
 ﻿Feature: Item Retrieval
 
 Background:
-    Given item with ID 'wepiqdxdzncjtnvmv5fegud4qy' in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
+    Given the client is configured to use host 'mock_host' and token 'jwt_token'
+    And item with ID 'wepiqdxdzncjtnvmv5fegud4qy' in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
         """
         {
             "id": "wepiqdxdzncjtnvmv5fegud4qy",
@@ -41,7 +42,7 @@ Background:
             ]
         }
         """
-    And the server returns the following body for call to url 'vaults/hfnjvi6aymbsnfc2xeeoheizda/items?filter=title eq "Test Login"'
+    And the server returns the following body for call to url 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items?filter=title eq "Test Login"'
         """
         [
             {
@@ -65,7 +66,7 @@ Background:
             }
         ]
         """
-    And the server returns the following body for call to url 'vaults/hfnjvi6aymbsnfc2xeeoheizda/items'
+    And the server returns the following body for call to url 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items'
         """
         [
             {
@@ -89,7 +90,7 @@ Background:
             }
         ]
         """
-    And the server returns the following body for call to url 'vaults/?filter=title eq "Automation"'
+    And the server returns the following body for call to url 'mock_host/v1/vaults/?filter=title eq "Automation"'
         """
         [
             {
@@ -99,44 +100,63 @@ Background:
                 "contentVersion": 14,
                 "items": 3,
                 "type": "USER_CREATED",
-                "createdAt": 1/21/2022 19:16:59,
-                "updatedAt": 1/22/2022 20:30:13
+                "createdAt": "2022-01-21T19:16:59Z",
+                "updatedAt": "2022-01-22T20:30:13Z"
             }
         ]
         """
-    And the client is configured to use host 'mock_host' and token 'jwt_token'
+    And the server returns the following body for call to url 'mock_host/v1/vaults'
+        """
+        [
+            {
+                "id": "hfnjvi6aymbsnfc2xeeoheizda",
+                "name": "Automation",
+                "attributeVersion": 1,
+                "contentVersion": 14,
+                "items": 3,
+                "type": "USER_CREATED",
+                "createdAt": "2022-01-21T19:16:59Z",
+                "updatedAt": "2022-01-22T20:30:13Z"
+            }
+        ]
+        """
 
 Scenario: Get item by ID and vault ID
     When the user requests item with ID 'wepiqdxdzncjtnvmv5fegud4qy' in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
-    Then the following server endpoint should be called 'hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy'
+    Then the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy'
     And the client should return item with ID 'wepiqdxdzncjtnvmv5fegud4qy'
 
 Scenario: Get item by title and vault ID
     When the user requests item with title 'Test Login' in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
-    Then the following server endpoint should be called 'hfnjvi6aymbsnfc2xeeoheizda/items?filter=title eq "Test Login"'
-    And the following server endpoint should be called 'hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy'
+    Then the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items?filter=title eq "Test Login"'
+    And the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy'
     And the client should return item with ID 'wepiqdxdzncjtnvmv5fegud4qy'
 
 Scenario: Get item by ID and vault title
     When the user requests item with ID 'wepiqdxdzncjtnvmv5fegud4qy' in vault with title 'Automation'
-    Then the following server endpoint should be called 'vaults?filter=title eq "Automation"'
-    And the following server endpoint should be called 'hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy'
+    Then the following url should be called 'mock_host/v1/vaults?filter=title eq "Automation"'
+    And the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy'
     And the client should return item with ID 'wepiqdxdzncjtnvmv5fegud4qy'
 
 Scenario: Get item by title and vault title
     When the user requests item with title 'Test Login' in vault with title 'Automation'
-    Then the following server endpoint should be called 'vaults?filter=title eq "Automation"'
-    And the following server endpoint should be called 'hfnjvi6aymbsnfc2xeeoheizda/items?filter=title eq "Test Login"'
-    And the following server endpoint should be called 'hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy'
+    Then the following url should be called 'mock_host/v1/vaults?filter=title eq "Automation"'
+    And the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items?filter=title eq "Test Login"'
+    And the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy'
     And the client should return item with ID 'wepiqdxdzncjtnvmv5fegud4qy'
 
 Scenario: Getting all items in a vault by vault ID
     When the user requests all items in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
-    Then the following server endpoint should be called 'hfnjvi6aymbsnfc2xeeoheizda/items'
+    Then the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items'
     And the client should return all items in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
 
 Scenario: Getting all items in a vault by vault title
     When the user requests all items in vault with title 'Automation'
-    Then the following server endpoint should be called 'vaults?filter=title eq "Automation"'
-    And the following server endpoint should be called 'hfnjvi6aymbsnfc2xeeoheizda/items'
+    Then the following url should be called 'mock_host/v1/vaults?filter=title eq "Automation"'
+    And the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items'
     And the client should return all items in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
+
+Scenario: Getting all vaults
+    When the user requests all vaults
+    Then the following url should be called 'mock_host/v1/vaults'
+    And the client should return all vaults
