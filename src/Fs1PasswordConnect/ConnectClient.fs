@@ -1,11 +1,12 @@
 ﻿module Fs1PasswordConnect.ConnectClient
 
+open System
 open System.Text
 open FSharpPlus.Data
 open Fleece.SystemTextJson
 open Fleece.SystemTextJson.Operators
 open FSharp.Data
-    open FSharpPlus
+open FSharpPlus
 
 type VaultId = VaultId of string
 type VaultTitle = VaultTitle of string
@@ -95,6 +96,15 @@ type ConnectClient internal (requestProcessor, settings) =
             return { StatusCode = response.StatusCode; Body = body }
         }
         ConnectClient(processRequest, settings)
+
+    /// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
+    /// environment variables Fails if either is not set.
+    static member MakeFromEnvironment() =
+        let host = Environment.GetEnvironmentVariable("OP_CONNECT_HOST")
+        let token = Environment.GetEnvironmentVariable("OP_CONNECT_TOKEN")
+        if host <> null && token <> null
+        then Ok <| ConnectClient.Make { Host = ConnectHost host; Token = ConnectToken token }
+        else Error ()
     member _.GetVaults() = request "vaults" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
