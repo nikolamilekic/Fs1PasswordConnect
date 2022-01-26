@@ -51,11 +51,11 @@ type ItemRetrievalFixture() =
     let [<When>] ``the user requests item with ID '(.*)' in vault with ID '(.*)'`` (itemId : string) (vaultId : string) =
         client.GetItem(VaultId vaultId, ItemId itemId) |> run
     let [<When>] ``the user requests item with title '(.*)' in vault with ID '(.*)'`` (itemTitle : string) (vaultId : string) =
-        client.GetItem(VaultId vaultId, ItemTitle itemTitle) |> run
+        client.GetItem(VaultId vaultId, Title itemTitle) |> run
     let [<When>] ``the user requests item with ID '(.*)' in vault with title '(.*)'`` (itemId : string) (vaultTitle : string) =
         client.GetItem(VaultTitle vaultTitle, ItemId itemId) |> run
     let [<When>] ``the user requests item with title '(.*)' in vault with title '(.*)'`` (itemTitle : string) (vaultTitle : string) =
-        client.GetItem(VaultTitle vaultTitle, ItemTitle itemTitle) |> run
+        client.GetItem(VaultTitle vaultTitle, Title itemTitle) |> run
     let [<Then>] ``the following url should be called '(.*)'`` (url : string) =
         List.contains url receivedCalls
     let [<Then>] ``the client should return item with ID '(.*)'`` (itemId : string) =

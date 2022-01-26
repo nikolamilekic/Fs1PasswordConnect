@@ -5,54 +5,54 @@ open FSharpPlus.Data
 open Fleece.SystemTextJson
 open Fleece.SystemTextJson.Operators
 open FSharp.Data
-open FSharpPlus
+    open FSharpPlus
 
 type VaultId = VaultId of string
 type VaultTitle = VaultTitle of string
-type VaultInfo = { VaultId : VaultId; VaultTitle : VaultTitle } with
+type VaultInfo = { Id : VaultId; Title : VaultTitle } with
     static member JsonObjCodec =
-        fun i t -> { VaultId = (VaultId i); VaultTitle = (VaultTitle t) }
+        fun i t -> { Id = (VaultId i); Title = (VaultTitle t) }
         |> withFields
-        |> jfield "id" (fun { VaultId = (VaultId i) } -> i)
-        |> jfield "name" (fun { VaultTitle = (VaultTitle t) } -> t)
+        |> jfield "id" (fun { Id = (VaultId i) } -> i)
+        |> jfield "name" (fun { Title = (VaultTitle t) } -> t)
 type ItemId = ItemId of string
-type ItemTitle = ItemTitle of string
+type Title = Title of string
 let private vaultStubCodec =
     (function | JObject o -> VaultId <!> (o .@ "id")
               | x -> Decode.Fail.objExpected x),
     (fun (VaultId id) -> jobj [ "id" .= id ])
-type ItemInfo = { ItemId : ItemId; ItemTitle : ItemTitle; VaultId : VaultId } with
+type ItemInfo = { Id : ItemId; Title : Title; VaultId : VaultId } with
     static member JsonObjCodec =
-        fun i t v -> { ItemId = (ItemId i); ItemTitle = (ItemTitle t); VaultId = v }
+        fun i t v -> { Id = (ItemId i); Title = (Title t); VaultId = v }
         |> withFields
-        |> jfield "id" (fun { ItemId = (ItemId i) } -> i)
-        |> jfield "title" (fun { ItemTitle = (ItemTitle t) } -> t)
+        |> jfield "id" (fun { ItemInfo.Id = (ItemId i) } -> i)
+        |> jfield "title" (fun { Title = (Title t) } -> t)
         |> jfieldWith vaultStubCodec "vault" (fun { VaultId = v } -> v)
 type FieldId = FieldId of string
-type FieldLabel = FieldLabel of string
+type Label = Label of string
 type FieldValue = FieldValue of string
-type Field = { FieldId : FieldId; FieldLabel : FieldLabel; FieldValue : FieldValue } with
+type Field = { Id : FieldId; Label : Label; Value : FieldValue } with
     static member JsonObjCodec =
-        fun i l v -> { FieldId = (FieldId i); FieldLabel = (FieldLabel l); FieldValue = (FieldValue v) }
+        fun i l v -> { Id = (FieldId i); Label = (Label l); Value = (FieldValue v) }
         |> withFields
-        |> jfield "id" (fun { FieldId = (FieldId i) } -> i)
-        |> jfield "label" (fun { FieldLabel = (FieldLabel l) } -> l)
-        |> jfield "value" (fun { FieldValue = (FieldValue v) } -> v)
+        |> jfield "id" (fun { Field.Id = (FieldId i) } -> i)
+        |> jfield "label" (fun { Label = (Label l) } -> l)
+        |> jfield "value" (fun { Value = (FieldValue v) } -> v)
 type Item = {
     ItemId : ItemId
-    ItemTitle : ItemTitle
+    ItemTitle : Title
     VaultId : VaultId
     Fields : Field list } with
     static member JsonObjCodec =
         fun i t v f -> {
             ItemId = (ItemId i)
-            ItemTitle = (ItemTitle t)
+            ItemTitle = (Title t)
             VaultId = v
             Fields = f
         }
         |> withFields
         |> jfield "id" (fun { Item.ItemId = (ItemId i) } -> i)
-        |> jfield "title" (fun { ItemTitle = (ItemTitle t) } -> t)
+        |> jfield "title" (fun { ItemTitle = (Title t) } -> t)
         |> jfieldWith vaultStubCodec "vault" (fun { Item.VaultId = v } -> v)
         |> jfield "fields" (fun { Fields = f } -> f)
 
@@ -106,16 +106,16 @@ type ConnectClient internal (requestProcessor, settings) =
         request $"vaults/?filter=title eq \"{title}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
-            | Ok (x : VaultInfo::_) -> result x.VaultId
+            | Ok (x : VaultInfo::_) -> result x.Id
             | Ok [] -> Error VaultNotFound |> hoist
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    member private _.GetItemId(VaultId vaultId, ItemTitle itemTitle) =
+    member private _.GetItemId(VaultId vaultId, Title itemTitle) =
         request $"vaults/{vaultId}/items?filter=title eq \"{itemTitle}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
-            | Ok (x : ItemInfo::_) -> result x.ItemId
+            | Ok (x : ItemInfo::_) -> result x.Id
             | Ok [] -> Error ItemNotFound |> hoist
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
@@ -137,7 +137,7 @@ type ConnectClient internal (requestProcessor, settings) =
     member this.GetItem(vaultId, itemTitle) =
         this.GetItemId(vaultId, itemTitle)
         >>= fun itemId -> this.GetItem(vaultId, itemId)
-    member this.GetItem(vaultTitle, itemTitle : ItemTitle) =
+    member this.GetItem(vaultTitle, itemTitle : Title) =
         this.GetVaultId vaultTitle
         >>= fun vaultId -> this.GetItem(vaultId, itemTitle)
     member _.GetItems(VaultId vaultId) =
