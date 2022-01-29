@@ -203,18 +203,22 @@ let cached inner = {
 }
 
 type ConnectClientFacade (client) =
-    member _.GetVaults () = client.GetVaults ()
-    member _.GetVaultId x = client.GetVaultId x
-    member _.GetItemId (x, y) = client.GetItemId x y
-    member _.GetItem (x, y) = client.GetItem x y
-    member _.GetItems x = client.GetItems x
-    member this.GetItem(vaultTitle, itemId : ItemId) =
-        this.GetVaultId vaultTitle
-        >>= fun vaultId -> this.GetItem(vaultId, itemId)
-    member this.GetItem(vaultId, itemTitle : ItemTitle) =
-        this.GetItemId(vaultId, itemTitle)
-        >>= fun itemId -> this.GetItem(vaultId, itemId)
-    member this.GetItem(vaultTitle, itemTitle : ItemTitle) =
-        this.GetVaultId vaultTitle
-        >>= fun vaultId -> this.GetItem(vaultId, itemTitle)
-    member x.GetItems(vaultTitle) = x.GetVaultId vaultTitle >>= x.GetItems
+    member _.GetVaults () = client.GetVaults () |> ResultT.run
+    member _.GetVaultId x = client.GetVaultId x |> ResultT.run
+    member _.GetItemId (x, y) = client.GetItemId x y |> ResultT.run
+    member _.GetItem (x, y) = client.GetItem x y |> ResultT.run
+    member _.GetItems x = client.GetItems x |> ResultT.run
+    member _.GetItem(vaultTitle, itemId : ItemId) =
+        client.GetVaultId vaultTitle
+        >>= fun vaultId -> client.GetItem vaultId itemId
+        |> ResultT.run
+    member _.GetItem(vaultId, itemTitle : ItemTitle) =
+        client.GetItemId vaultId itemTitle >>= client.GetItem vaultId
+        |> ResultT.run
+    member _.GetItem(vaultTitle, itemTitle : ItemTitle) =
+        client.GetVaultId vaultTitle
+        >>= fun vaultId -> client.GetItemId vaultId itemTitle >>= client.GetItem vaultId
+        |> ResultT.run
+    member _.GetItems(vaultTitle) =
+        client.GetVaultId vaultTitle >>= client.GetItems
+        |> ResultT.run

@@ -34,8 +34,8 @@ type ItemRetrievalFixture() =
     let mutable client =
         let c = fromSettings { Host = ConnectHost ""; Token = ConnectToken "" }
         ConnectClientFacade c
-    let run (x : ResultT<Async<Result<_, ConnectError>>>) =
-        match ResultT.run x |> Async.RunSynchronously with
+    let run (x : Async<Result<_, ConnectError>>) =
+        match Async.RunSynchronously x with
         | Ok x -> result <- x
         | Error e -> result <- e.ToString()
     let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (h : string) (t : string) =
