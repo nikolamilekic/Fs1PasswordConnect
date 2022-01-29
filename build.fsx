@@ -1,26 +1,20 @@
 #load ".fake/build.fsx/intellisense.fsx"
 
-module CustomTargetOperators =
-    //nuget Fake.Core.Target
+//nuget Fake.Core.Target
+open Fake.Core.TargetOperators
 
-    open Fake.Core.TargetOperators
-
-    let (==>) xs y = xs |> Seq.iter (fun x -> x ==> y |> ignore)
-    let (?=>) xs y = xs |> Seq.iter (fun x -> x ?=> y |> ignore)
+let (==>) xs y = xs |> Seq.iter (fun x -> x ==> y |> ignore)
+let (?=>) xs y = xs |> Seq.iter (fun x -> x ?=> y |> ignore)
 
 module FinalVersion =
     //nuget Fake.IO.FileSystem
     //nuget Fake.Core.SemVer
+    //nuget Milekic.YoLo
 
-    open System.Text.RegularExpressions
     open Fake.IO
     open Fake.IO.Globbing.Operators
     open Fake.Core
-
-    let (|Regex|_|) pattern input =
-        let m = Regex.Match(input, pattern)
-        if m.Success then Some(List.tail [ for g in m.Groups -> g.Value ])
-        else None
+    open Milekic.YoLo
 
     let getFinalVersionFromAssemblyInfo x =
         match File.readAsString x with
@@ -79,38 +73,9 @@ module Build =
 
     let projectToBuild = !! "*.sln" |> Seq.head
 
-    Target.create "Build" <| fun _ ->
-        DotNet.build id projectToBuild
+    Target.create "Build" <| fun _ -> DotNet.build id projectToBuild
 
     "Clean" ?=> "Build"
-
-module Pack =
-    //nuget Fake.DotNet.Cli
-    //nuget Fake.IO.FileSystem
-
-    open Fake.DotNet
-    open Fake.Core
-    open Fake.IO.Globbing.Operators
-
-    open CustomTargetOperators
-    open ReleaseNotesParsing
-
-    let projectToPack = !! "*.sln" |> Seq.head
-
-    Target.create "Pack" <| fun _ ->
-        let newBuildProperties = [ "PackageReleaseNotes", releaseNotes.Value ]
-        DotNet.pack
-            (fun p ->
-                { p with
-                    OutputPath = Some (__SOURCE_DIRECTORY__ + "/publish")
-                    NoBuild = true
-                    MSBuildParams =
-                        { p.MSBuildParams with
-                            Properties =
-                                newBuildProperties @ p.MSBuildParams.Properties }})
-            projectToPack
-
-    [ "Clean"; "Build" ] ==> "Pack"
 
 module Test =
     //nuget Fake.DotNet.Cli
@@ -121,8 +86,6 @@ module Test =
     open Fake.Core
     open Fake.DotNet
     open Fake.IO.Globbing.Operators
-
-    open CustomTargetOperators
 
     let testProjects = !!"tests/*/*.?sproj"
 
@@ -164,6 +127,139 @@ module Test =
 
     [ "Build" ] ==> "Test"
 
+module Pack =
+    //nuget Fake.DotNet.Cli
+    //nuget Fake.IO.FileSystem
+
+    open Fake.DotNet
+    open Fake.Core
+    open Fake.IO.Globbing.Operators
+
+    open ReleaseNotesParsing
+
+    let projectToPack = !! "*.sln" |> Seq.head
+
+    Target.create "Pack" <| fun _ ->
+        let newBuildProperties = [ "PackageReleaseNotes", releaseNotes.Value ]
+        DotNet.pack
+            (fun p ->
+                { p with
+                    OutputPath = Some (__SOURCE_DIRECTORY__ + "/publish")
+                    NoBuild = true
+                    NoRestore = true
+                    MSBuildParams =
+                        { p.MSBuildParams with
+                            Properties =
+                                newBuildProperties @ p.MSBuildParams.Properties }})
+            projectToPack
+
+    [ "Build"; "Test" ] ==> "Pack"
+
+module Publish =
+    //nuget Fake.DotNet.Cli
+    //nuget Fake.IO.FileSystem
+    //nuget Fake.IO.Zip
+    //nuget Milekic.YoLo
+
+    open System.IO
+    open System.Text.RegularExpressions
+    open Fake.DotNet
+    open Fake.Core
+    open Fake.IO
+    open Fake.IO.Globbing.Operators
+    open Fake.IO.FileSystemOperators
+    open Milekic.YoLo
+
+    open FinalVersion
+
+    let projectsToPublish = !!"src/*/*.?sproj"
+    let runtimesToTarget = [ "osx-x64"; "win-x64"; "linux-arm"; "linux-x64" ]
+
+    Target.create "Publish" <| fun _ ->
+        let projectsToPublish = query {
+            for _project in projectsToPublish do
+            let _projectContents = File.readAsString _project
+            let _outputType =
+                match _projectContents with
+                | Regex "<OutputType>(.+)<\/OutputType>" [ outputType ] ->
+                    Some (outputType.ToLower())
+                | _ -> None
+            let _projectType =
+                match _projectContents with
+                | Regex "<Project Sdk=\"(.+)\">" [ projectType ] ->
+                    Some (projectType.ToLower())
+                | _ -> None
+            where (
+                _projectType = Some "microsoft.net.sdk.web" ||
+                _outputType = Some "exe" ||
+                _outputType = Some "winexe")
+
+            let _runtimesToTarget =
+                match _projectContents with
+                | Regex "<RuntimeIdentifier.?>(.+)<\/RuntimeIdentifier" [ runtimes ] ->
+                    runtimes |> String.splitStr ";"
+                | _ -> runtimesToTarget
+
+            for _runtime in _runtimesToTarget do
+
+            let _targetFrameworks =
+                match _projectContents with
+                | Regex "<TargetFramework.?>(.+)<\/TargetFramework" [ frameworks ] ->
+                    frameworks |> String.splitStr ";"
+                | _ -> List.empty
+
+            for framework in _targetFrameworks do
+
+            select (_project, framework, _runtime)
+        }
+
+        for project, framework, runtime in projectsToPublish do
+            let customParameters = "-p:PublishSingleFile=true -p:PublishTrimmed=true"
+
+            project
+            |> DotNet.publish (fun p ->
+                { p with
+                    Framework = Some framework
+                    Runtime = Some runtime
+                    Common = { p.Common with CustomParams = Some customParameters } } )
+
+            let sourceFolder =
+                seq {
+                    (Path.getDirectory project)
+                    "bin/Release"
+                    framework
+                    runtime
+                    "publish"
+                }
+                |> Seq.fold (</>) ""
+
+            let targetFolder =
+                seq {
+                    "publish"
+                    Path.GetFileNameWithoutExtension project
+                    framework
+                    runtime
+                }
+                |> Seq.fold (</>) ""
+
+            Shell.copyDir targetFolder sourceFolder (fun _ -> true)
+
+            let zipFileName =
+                seq {
+                    Path.GetFileNameWithoutExtension project
+                    finalVersion.Value.NormalizeToShorter()
+                    framework
+                    runtime
+                }
+                |> String.concat "."
+
+            Zip.zip
+                targetFolder
+                $"publish/{zipFileName}.zip"
+                !! (targetFolder </> "**")
+
+    [ "Clean"; "Build"; "Test" ] ==> "Publish"
+
 module TestSourceLink =
     //nuget Fake.IO.FileSystem
     //nuget Fake.DotNet.Cli
@@ -174,12 +270,9 @@ module TestSourceLink =
     open Fake.DotNet
 
     Target.create "TestSourceLink" <| fun _ ->
-        !! "publish/*.nupkg"
+        !! "publish/*.nupkg" ++ "publish/*.snupkg"
         |> Seq.iter (fun p ->
-            DotNet.exec
-                id
-                "sourcelink"
-                $"test {p}"
+            DotNet.exec id "sourcelink" $"test {p}"
             |> fun r -> if not r.OK then failwith $"Source link check for {p} failed.")
 
     "Pack" ==> "TestSourceLink"
@@ -237,7 +330,6 @@ module UploadArtifactsToGitHub =
     open Fake.IO.Globbing.Operators
     open Fake.BuildServer
 
-    open CustomTargetOperators
     open FinalVersion
     open ReleaseNotesParsing
 
@@ -261,11 +353,14 @@ module UploadArtifactsToGitHub =
                         Body = releaseNotes.Value
                         Prerelease = (finalVersion.PreRelease <> None)
                         TargetCommitish = targetCommit })
-            |> GitHub.uploadFiles (!! "publish/*.nupkg" ++ "publish/*.zip")
+            |> GitHub.uploadFiles (
+                !! "publish/*.nupkg"
+                ++ "publish/*.snupkg"
+                ++ "publish/*.zip")
             |> GitHub.publishDraft
             |> Async.RunSynchronously
 
-    [ "Pack"; "Test"; "TestSourceLink" ] ==> "UploadArtifactsToGitHub"
+    [ "Pack"; "Publish"; "Test"; "TestSourceLink" ] ==> "UploadArtifactsToGitHub"
 
 module UploadPackageToNuget =
     //nuget Fake.DotNet.Paket
@@ -276,11 +371,9 @@ module UploadPackageToNuget =
     open Fake.BuildServer
 
     open FinalVersion
-    open CustomTargetOperators
 
     Target.create "UploadPackageToNuget" <| fun _ ->
-        if GitHubActions.detect() &&
-            finalVersion.Value.PreRelease.IsNone then
+        if GitHubActions.detect() && finalVersion.Value.PreRelease.IsNone then
             Paket.push <| fun p ->
                 { p with
                     ToolType = ToolType.CreateLocalTool()
@@ -290,24 +383,19 @@ module UploadPackageToNuget =
 
 module Release =
     //nuget Fake.Tools.Git
+    //nuget Milekic.YoLo
 
     open System.Text.RegularExpressions
     open Fake.IO
     open Fake.IO.Globbing.Operators
     open Fake.Core
     open Fake.Tools
-
-    open CustomTargetOperators
+    open Milekic.YoLo
 
     let pathToThisAssemblyFile =
         lazy
         !! "src/*/obj/Release/**/ThisAssembly.GitInfo.g.?s"
         |> Seq.head
-
-    let (|Regex|_|) pattern input =
-        let m = Regex.Match(input, pattern)
-        if m.Success then Some(List.tail [ for g in m.Groups -> g.Value ])
-        else None
 
     let gitHome =
         lazy
@@ -327,18 +415,14 @@ module Release =
 module GitHubActions =
     open Fake.Core
 
-    open CustomTargetOperators
-
     Target.create "BuildAction" ignore
-    [ "Build"; "Test"; "TestSourceLink" ] ==> "BuildAction"
+    [ "Clean"; "Build"; "Test"; "TestSourceLink" ] ==> "BuildAction"
 
     Target.create "ReleaseAction" ignore
-    [ "UploadArtifactsToGitHub"; "UploadPackageToNuget" ] ==> "ReleaseAction"
+    [ "Clean"; "UploadArtifactsToGitHub"; "UploadPackageToNuget" ] ==> "ReleaseAction"
 
 module Default =
     open Fake.Core
-
-    open CustomTargetOperators
 
     Target.create "Default" ignore
     [ "Build"; "Test" ] ==> "Default"
