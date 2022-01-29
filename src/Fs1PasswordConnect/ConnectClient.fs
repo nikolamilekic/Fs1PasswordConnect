@@ -194,7 +194,7 @@ let internal cacheConnectFunction (f : 'a -> ConnectClientMonad<'b>) =
     }
     cached
 
-let cached inner = {
+let cache inner = {
     GetVaults = cacheConnectFunction inner.GetVaults
     GetVaultId = cacheConnectFunction inner.GetVaultId
     GetItemId = cacheConnectFunction (uncurry inner.GetItemId) |> curry
