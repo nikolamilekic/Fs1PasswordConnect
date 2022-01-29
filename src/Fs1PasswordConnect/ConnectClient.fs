@@ -112,7 +112,7 @@ type ConnectClient internal (requestProcessor, settings) =
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    member private _.GetVaultId(VaultTitle title) =
+    member _.GetVaultId(VaultTitle title) =
         request $"vaults/?filter=title eq \"{title}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
@@ -121,7 +121,7 @@ type ConnectClient internal (requestProcessor, settings) =
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    member private _.GetItemId(VaultId vaultId, Title itemTitle) =
+    member _.GetItemId(VaultId vaultId, Title itemTitle) =
         request $"vaults/{vaultId}/items?filter=title eq \"{itemTitle}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
