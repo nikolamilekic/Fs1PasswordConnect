@@ -82,47 +82,39 @@ type ConnectClientSettings = { Host : ConnectHost; Token : ConnectToken }
 type internal Request = { Url : string; Headers : (string * string) list }
 type internal Response = { StatusCode : int; Body : string }
 
-type ConnectClient internal (requestProcessor, settings) =
+type ConnectClient = {
+    GetVaults : unit -> ConnectClientMonad<VaultInfo list>
+    GetVaultId : VaultTitle -> ConnectClientMonad<VaultId>
+    GetItemId : VaultId -> ItemTitle -> ConnectClientMonad<ItemId>
+    GetItem : VaultId -> ItemId -> ConnectClientMonad<Item>
+    GetItems : VaultId -> ConnectClientMonad<ItemInfo list>
+}
+and ConnectClientMonad<'a> = ResultT<Async<Result<'a, ConnectError>>>
+
+let internal lift x : ConnectClientMonad<'a> = ResultT.lift x
+let internal hoist x : ConnectClientMonad<'a> = ResultT.hoist x
+
+let internal fromRequestProcessor requestProcessor settings =
     let { Host = (ConnectHost host); Token = (ConnectToken token) } = settings
     let headers = [ "Authorization", $"Bearer {token}" ]
     let makeRequest (endpoint : string) = {
         Url = $"{host.TrimEnd('/')}/v1/{endpoint.TrimStart('/')}"
         Headers = headers
     }
-    let lift : (Async<_> -> ResultT<Async<Result<_, ConnectError>>>) = ResultT.lift
-    let hoist : (Result<_, ConnectError> -> ResultT<Async<_>>) = ResultT.hoist
     let request (endpoint : string) = monad {
         try return! requestProcessor (makeRequest endpoint) |> lift
         with exn -> return! Error (CriticalFailure exn) |> hoist
     }
 
-    static member Make settings =
-        let processRequest { Url = url; Headers = headers } = monad {
-            let! response = Http.AsyncRequest(url, headers = headers)
-            let body =
-                match response.Body with
-                | Text text -> text
-                | Binary binary -> Encoding.UTF8.GetString(binary)
-            return { StatusCode = response.StatusCode; Body = body }
-        }
-        ConnectClient(processRequest, settings)
-
-    /// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
-    /// environment variables Fails if either is not set.
-    static member MakeFromEnvironment() =
-        let host = Environment.GetEnvironmentVariable("OP_CONNECT_HOST")
-        let token = Environment.GetEnvironmentVariable("OP_CONNECT_TOKEN")
-        if host <> null && token <> null
-        then Ok <| ConnectClient.Make { Host = ConnectHost host; Token = ConnectToken token }
-        else Error ()
-    member _.GetVaults() = request "vaults" >>= function
+    let getVaults () =
+        request "vaults" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
             | Ok (vaults : VaultInfo list) -> result vaults
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    member _.GetVaultId(VaultTitle title) =
+    let getVaultId (VaultTitle title) =
         request $"vaults/?filter=title eq \"{title}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
@@ -131,7 +123,7 @@ type ConnectClient internal (requestProcessor, settings) =
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    member _.GetItemId(VaultId vaultId, ItemTitle itemTitle) =
+    let getItemId (VaultId vaultId) (ItemTitle itemTitle) =
         request $"vaults/{vaultId}/items?filter=title eq \"{itemTitle}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
@@ -141,7 +133,7 @@ type ConnectClient internal (requestProcessor, settings) =
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = 404 } -> Error VaultNotFound |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    member _.GetItem(VaultId vaultId, ItemId itemId) =
+    let getItem (VaultId vaultId) (ItemId itemId) =
         request $"vaults/{vaultId}/items/{itemId}" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
@@ -151,16 +143,7 @@ type ConnectClient internal (requestProcessor, settings) =
         | { StatusCode = 403 } -> Error UnauthorizedAccess |> hoist
         | { StatusCode = 404 } -> Error ItemNotFound |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    member this.GetItem(vaultTitle, itemId : ItemId) =
-        this.GetVaultId vaultTitle
-        >>= fun vaultId -> this.GetItem(vaultId, itemId)
-    member this.GetItem(vaultId, itemTitle) =
-        this.GetItemId(vaultId, itemTitle)
-        >>= fun itemId -> this.GetItem(vaultId, itemId)
-    member this.GetItem(vaultTitle, itemTitle : ItemTitle) =
-        this.GetVaultId vaultTitle
-        >>= fun vaultId -> this.GetItem(vaultId, itemTitle)
-    member _.GetItems(VaultId vaultId) =
+    let getItems (VaultId vaultId) =
         request $"vaults/{vaultId}/items" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
@@ -169,4 +152,48 @@ type ConnectClient internal (requestProcessor, settings) =
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = 404 } -> Error VaultNotFound |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
+
+    {
+        GetVaults = getVaults
+        GetVaultId = getVaultId
+        GetItemId = getItemId
+        GetItem = getItem
+        GetItems = getItems
+    }
+
+let fromSettings settings =
+    let requestProcessor { Url = url; Headers = headers } = monad {
+        let! response = Http.AsyncRequest(url, headers = headers)
+        let body =
+            match response.Body with
+            | Text text -> text
+            | Binary binary -> Encoding.UTF8.GetString(binary)
+        return { StatusCode = response.StatusCode; Body = body }
+    }
+    fromRequestProcessor requestProcessor settings
+
+/// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
+/// environment variables Fails if either is not set.
+let fromEnvironmentVariables () =
+    let host = Environment.GetEnvironmentVariable("OP_CONNECT_HOST")
+    let token = Environment.GetEnvironmentVariable("OP_CONNECT_TOKEN")
+    if host <> null && token <> null
+    then Ok <| fromSettings { Host = ConnectHost host; Token = ConnectToken token }
+    else Error ()
+
+type ConnectClientFacade (client) =
+    member _.GetVaults () = client.GetVaults ()
+    member _.GetVaultId x = client.GetVaultId x
+    member _.GetItemId (x, y) = client.GetItemId x y
+    member _.GetItem (x, y) = client.GetItem x y
+    member _.GetItems x = client.GetItems x
+    member this.GetItem(vaultTitle, itemId : ItemId) =
+        this.GetVaultId vaultTitle
+        >>= fun vaultId -> this.GetItem(vaultId, itemId)
+    member this.GetItem(vaultId, itemTitle : ItemTitle) =
+        this.GetItemId(vaultId, itemTitle)
+        >>= fun itemId -> this.GetItem(vaultId, itemId)
+    member this.GetItem(vaultTitle, itemTitle : ItemTitle) =
+        this.GetVaultId vaultTitle
+        >>= fun vaultId -> this.GetItem(vaultId, itemTitle)
     member x.GetItems(vaultTitle) = x.GetVaultId vaultTitle >>= x.GetItems

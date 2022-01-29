@@ -1,5 +1,6 @@
 ﻿namespace Fs1PasswordConnect.Tests
 
+open Fs1PasswordConnect
 open Swensen.Unquote
 open FSharpPlus
 open FSharpPlus.Data
@@ -29,7 +30,10 @@ type ItemRetrievalFixture() =
             | Some r -> { Body = r; StatusCode = 200 }
             | None -> failwith $"No response configured for url: {url}"
     }
-    let mutable client = ConnectClient(requestProcessor, { Host = ConnectHost ""; Token = ConnectToken "" })
+    let fromSettings = ConnectClient.fromRequestProcessor requestProcessor
+    let mutable client =
+        let c = fromSettings { Host = ConnectHost ""; Token = ConnectToken "" }
+        ConnectClientFacade c
     let run (x : ResultT<Async<Result<_, ConnectError>>>) =
         match ResultT.run x |> Async.RunSynchronously with
         | Ok x -> result <- x
@@ -37,7 +41,8 @@ type ItemRetrievalFixture() =
     let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (h : string) (t : string) =
         host <- h.TrimEnd('/')
         token <- t
-        client <- ConnectClient(requestProcessor, { Host = ConnectHost h; Token = ConnectToken t })
+        let c = fromSettings { Host = ConnectHost h; Token = ConnectToken t }
+        client <- ConnectClientFacade c
     let [<Given>] ``the server returns the following body for call to url '(.*)'`` (url : string) (body : string) =
         responses <- Map.add url body responses
     let [<Given>] ``item with ID '(.*)' in vault with ID '(.*)'`` (itemId : string) (vaultId : string) body =
