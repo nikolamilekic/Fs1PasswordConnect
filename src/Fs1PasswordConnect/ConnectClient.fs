@@ -7,6 +7,7 @@ open Fleece.SystemTextJson
 open Fleece.SystemTextJson.Operators
 open FSharp.Data
 open FSharpPlus
+open Milekic.YoLo
 
 type VaultId = VaultId of string
 type VaultTitle = VaultTitle of string
@@ -180,6 +181,26 @@ let fromEnvironmentVariables () =
     if host <> null && token <> null
     then Ok <| fromSettings { Host = ConnectHost host; Token = ConnectToken token }
     else Error ()
+
+let internal cacheConnectFunction (f : 'a -> ConnectClientMonad<'b>) =
+    let cache = ref Map.empty
+    let cached x : ConnectClientMonad<'b> = ResultT <| async {
+        match Map.tryFind x cache.Value with
+        | Some y -> return y
+        | None ->
+            let! result = f x |> ResultT.run
+            atomicUpdateQueryResult cache (fun c -> (), Map.add x result c)
+            return result
+    }
+    cached
+
+let cached inner = {
+    GetVaults = cacheConnectFunction inner.GetVaults
+    GetVaultId = cacheConnectFunction inner.GetVaultId
+    GetItemId = cacheConnectFunction (uncurry inner.GetItemId) |> curry
+    GetItem = cacheConnectFunction (uncurry inner.GetItem) |> curry
+    GetItems = cacheConnectFunction inner.GetItems
+}
 
 type ConnectClientFacade (client) =
     member _.GetVaults () = client.GetVaults ()
