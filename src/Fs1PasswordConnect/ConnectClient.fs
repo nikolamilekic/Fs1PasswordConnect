@@ -65,6 +65,16 @@ type ConnectError =
     | MissingToken
     | VaultNotFound
     | ItemNotFound
+    with
+    override this.ToString() =
+        match this with
+        | CriticalFailure exn -> $"Critical failure: {exn.Message}"
+        | UnexpectedStatusCode code -> $"Connect server return an unexpected status code: {code}"
+        | DecodeError message -> $"Connect server return a result which could not be decoded due to the following error: {message}"
+        | UnauthorizedAccess -> "Unauthorized access to Connect server"
+        | MissingToken -> "Connect server token is missing"
+        | VaultNotFound -> "Vault not found"
+        | ItemNotFound -> "Item not found"
 
 type ConnectHost = ConnectHost of string
 type ConnectToken = ConnectToken of string
