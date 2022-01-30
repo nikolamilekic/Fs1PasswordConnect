@@ -1,4 +1,5 @@
-﻿module Fs1PasswordConnect.ConnectClient
+﻿[<RequireQualifiedAccess>]
+module Fs1PasswordConnect.ConnectClient
 
 open System
 open System.Text
