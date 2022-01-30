@@ -90,7 +90,7 @@ Background:
             }
         ]
         """
-    And the server returns the following body for call to url 'mock_host/v1/vaults/?filter=title eq "Automation"'
+    And the server returns the following body for call to url 'mock_host/v1/vaults?filter=title eq "Automation"'
         """
         [
             {

@@ -33,7 +33,7 @@ let internal fromRequestProcessor requestProcessor settings =
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
     let getVaultId (VaultTitle title) =
-        request $"vaults/?filter=title eq \"{title}\"" >>= function
+        request $"vaults?filter=title eq \"{title}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
             | Ok (x : VaultInfo::_) -> result x.Id
