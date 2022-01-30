@@ -36,11 +36,15 @@ type FieldLabel = FieldLabel of string
 type FieldValue = FieldValue of string
 type Field = { Id : FieldId; Label : FieldLabel; Value : FieldValue } with
     static member JsonObjCodec =
-        fun i l v -> { Id = (FieldId i); Label = (FieldLabel l); Value = (FieldValue v) }
+        fun i l v -> {
+            Id = (FieldId i)
+            Label = (FieldLabel (l |> Option.defaultValue ""))
+            Value = (FieldValue (v |> Option.defaultValue ""))
+        }
         |> withFields
         |> jfield "id" (fun { Field.Id = (FieldId i) } -> i)
-        |> jfield "label" (fun { Label = (FieldLabel l) } -> l)
-        |> jfield "value" (fun { Value = (FieldValue v) } -> v)
+        |> jfieldOpt "label" (fun { Label = (FieldLabel l) } -> Some l)
+        |> jfieldOpt "value" (fun { Value = (FieldValue v) } -> Some v)
 type Item = {
     Id : ItemId
     Title : ItemTitle
