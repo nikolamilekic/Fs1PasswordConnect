@@ -136,7 +136,7 @@ Scenario: Get item by ID and vault title
     When the user requests item with ID 'wepiqdxdzncjtnvmv5fegud4qy' in vault with title 'Automation'
     Then the following url should be called 'mock_host/v1/vaults?filter=title eq "Automation"'
     And the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy'
-    And the client should return item with ID 'wepiqdxdzncjtnvmv5fegud4qy'
+        And the client should return item with ID 'wepiqdxdzncjtnvmv5fegud4qy'
 
 Scenario: Get item by title and vault title
     When the user requests item with title 'Test Login' in vault with title 'Automation'
