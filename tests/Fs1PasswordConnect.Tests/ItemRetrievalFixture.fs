@@ -8,8 +8,6 @@ open FSharpPlus.Lens
 open TechTalk.SpecFlow
 open Fleece.SystemTextJson
 
-open Fs1PasswordConnect.ConnectClient
-
 [<Binding>]
 type ItemRetrievalFixture() =
     let mutable result = box ""
@@ -30,10 +28,11 @@ type ItemRetrievalFixture() =
             | Some r -> { Body = r; StatusCode = 200 }
             | None -> failwith $"No response configured for url: {url}"
     }
-    let fromSettings = ConnectClient.fromRequestProcessor requestProcessor
+    let fromSettings =
+        ConnectClient.fromRequestProcessor requestProcessor
+        >> ConnectClientFacade
     let mutable client =
-        let c = fromSettings { Host = ConnectHost ""; Token = ConnectToken "" }
-        ConnectClientFacade c
+        fromSettings { Host = ConnectHost ""; Token = ConnectToken "" }
     let run (x : Async<Result<_, ConnectError>>) =
         match Async.RunSynchronously x with
         | Ok x -> result <- x
@@ -41,8 +40,7 @@ type ItemRetrievalFixture() =
     let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (h : string) (t : string) =
         host <- h.TrimEnd('/')
         token <- t
-        let c = fromSettings { Host = ConnectHost h; Token = ConnectToken t }
-        client <- ConnectClientFacade c
+        client <- fromSettings { Host = ConnectHost h; Token = ConnectToken t }
     let [<Given>] ``the server returns the following body for call to url '(.*)'`` (url : string) (body : string) =
         responses <- Map.add url body responses
     let [<Given>] ``item with ID '(.*)' in vault with ID '(.*)'`` (itemId : string) (vaultId : string) body =

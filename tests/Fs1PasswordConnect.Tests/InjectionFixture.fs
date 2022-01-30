@@ -5,7 +5,6 @@ open FSharpPlus
 open FSharpPlus.Data
 open FSharpPlus.Lens
 open TechTalk.SpecFlow
-open Fs1PasswordConnect.ConnectClient
 
 [<Binding>]
 type InjectionFixture() =
