@@ -79,7 +79,12 @@ type ConnectError =
 
 type ConnectHost = ConnectHost of string
 type ConnectToken = ConnectToken of string
-type ConnectClientSettings = { Host : ConnectHost; Token : ConnectToken }
+type ConnectClientSettings = { Host : ConnectHost; Token : ConnectToken } with
+    static member JsonObjCodec =
+        fun h t -> { Host = ConnectHost h; Token = ConnectToken t }
+        |> withFields
+        |> jfield "Host" (fun { Host = (ConnectHost h) } -> h)
+        |> jfield "Token" (fun { Token = (ConnectToken t) } -> t)
 type internal Request = { Url : string; Headers : (string * string) list }
 type internal Response = { StatusCode : int; Body : string }
 
