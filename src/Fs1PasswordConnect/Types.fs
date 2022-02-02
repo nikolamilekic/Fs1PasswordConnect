@@ -95,7 +95,7 @@ type ConnectClientSettings = { Host : ConnectHost; Token : ConnectToken } with
 type internal Request = { Url : string; Headers : (string * string) list }
 type internal Response = { StatusCode : int; Body : string }
 
-type ConnectClientOperations = {
+type internal ConnectClientOperations = {
     GetVaults : unit -> ConnectClientMonad<VaultInfo list>
     GetVaultId : VaultTitle -> ConnectClientMonad<VaultId>
     GetItemId : VaultId -> ItemTitle -> ConnectClientMonad<ItemId>
@@ -104,7 +104,7 @@ type ConnectClientOperations = {
 }
 and ConnectClientMonad<'a> = ResultT<Async<Result<'a, ConnectError>>>
 
-type ConnectClientFacade (client : ConnectClientOperations) =
+type ConnectClientFacade internal (client : ConnectClientOperations) =
     member _.GetVaults () = client.GetVaults () |> ResultT.run
     member _.GetVaultId x = client.GetVaultId x |> ResultT.run
     member _.GetItemId (x, y) = client.GetItemId x y |> ResultT.run

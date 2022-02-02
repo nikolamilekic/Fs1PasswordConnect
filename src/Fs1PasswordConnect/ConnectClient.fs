@@ -102,7 +102,7 @@ let internal cacheConnectFunction (f : 'a -> ConnectClientMonad<'b>) =
     }
     cached
 
-let cache inner = {
+let internal cache inner = {
     GetVaults = cacheConnectFunction inner.GetVaults
     GetVaultId = cacheConnectFunction inner.GetVaultId
     GetItemId = cacheConnectFunction (uncurry inner.GetItemId) |> curry
@@ -115,7 +115,7 @@ let fromSettingsCached = operationsFromSettings >> cache >> ConnectClientFacade
 
 /// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
 /// environment variables Fails if either is not set.
-let operationsFromEnvironmentVariables () =
+let internal operationsFromEnvironmentVariables () =
     let host = Environment.GetEnvironmentVariable("OP_CONNECT_HOST")
     let token = Environment.GetEnvironmentVariable("OP_CONNECT_TOKEN")
     if host <> null && token <> null
