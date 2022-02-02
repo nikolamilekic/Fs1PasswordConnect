@@ -68,14 +68,16 @@ module Build =
 
     open Fake.DotNet
     open Fake.Core
-    open Fake.Core.TargetOperators
     open Fake.IO.Globbing.Operators
 
     let projectToBuild = !! "*.sln" |> Seq.head
 
     Target.create "Build" <| fun _ -> DotNet.build id projectToBuild
 
-    "Clean" ?=> "Build"
+    [ "Clean" ] ?=> "Build"
+
+    Target.create "Rebuild" ignore
+    [ "Clean"; "Build" ] ==> "Rebuild"
 
 module Test =
     //nuget Fake.DotNet.Cli
@@ -155,6 +157,9 @@ module Pack =
 
     [ "Build"; "Test" ] ==> "Pack"
 
+    Target.create "Repack" ignore
+    [ "Clean"; "Pack" ] ==> "Repack"
+
 module Publish =
     //nuget Fake.DotNet.Cli
     //nuget Fake.IO.FileSystem
@@ -162,7 +167,6 @@ module Publish =
     //nuget Milekic.YoLo
 
     open System.IO
-    open System.Text.RegularExpressions
     open Fake.DotNet
     open Fake.Core
     open Fake.IO
@@ -265,17 +269,16 @@ module TestSourceLink =
     //nuget Fake.DotNet.Cli
 
     open Fake.Core
-    open Fake.Core.TargetOperators
     open Fake.IO.Globbing.Operators
     open Fake.DotNet
 
     Target.create "TestSourceLink" <| fun _ ->
-        !! "publish/*.nupkg" ++ "publish/*.snupkg"
+        !! "src/**/bin/Release/**/*.pdb"
         |> Seq.iter (fun p ->
             DotNet.exec id "sourcelink" $"test {p}"
             |> fun r -> if not r.OK then failwith $"Source link check for {p} failed.")
 
-    "Pack" ==> "TestSourceLink"
+    [ "Clean"; "Pack" ] ==> "TestSourceLink"
 
 module Run =
     open Fake.Core
@@ -341,7 +344,7 @@ module UploadArtifactsToGitHub =
         let targetCommit =
             if GitHubActions.detect() then GitHubActions.Environment.Sha
             else ""
-        if targetCommit <> "" && finalVersion.PreRelease.IsNone then
+        if targetCommit <> "" then
             let token = Environment.environVarOrFail "GitHubToken"
             GitHub.createClientWithToken token
             |> GitHub.createRelease
@@ -370,22 +373,20 @@ module UploadPackageToNuget =
     open Fake.DotNet
     open Fake.BuildServer
 
-    open FinalVersion
-
     Target.create "UploadPackageToNuget" <| fun _ ->
-        if GitHubActions.detect() && finalVersion.Value.PreRelease.IsNone then
+        if GitHubActions.detect() then
             Paket.push <| fun p ->
                 { p with
                     ToolType = ToolType.CreateLocalTool()
                     WorkingDir = __SOURCE_DIRECTORY__ + "/publish" }
 
     [ "Pack"; "Test"; "TestSourceLink" ] ==> "UploadPackageToNuget"
+    [ "UploadArtifactsToGitHub" ] ?=> "UploadPackageToNuget"
 
 module Release =
     //nuget Fake.Tools.Git
     //nuget Milekic.YoLo
 
-    open System.Text.RegularExpressions
     open Fake.IO
     open Fake.IO.Globbing.Operators
     open Fake.Core
@@ -410,7 +411,7 @@ module Release =
             ""
             $"push -f {gitHome.Value} HEAD:release"
 
-    [ "Clean"; "Build"; "Test" ] ==> "Release"
+    [ "Clean"; "Build"; "Test"; "TestSourceLink" ] ==> "Release"
 
 module GitHubActions =
     open Fake.Core

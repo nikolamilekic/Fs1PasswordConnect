@@ -1,7 +1,7 @@
 STORAGE: NONE
 RESTRICTION: == net6.0
 NUGET
-  remote: https://www.nuget.org/api/v2
+  remote: https://api.nuget.org/v3/index.json
     BoDi (1.5)
     Expecto (9.0.4)
       FSharp.Core (>= 4.6)
@@ -41,6 +41,8 @@ NUGET
       Microsoft.TestPlatform.ObjectModel (>= 17.0)
       Newtonsoft.Json (>= 9.0.1)
     Microsoft.Win32.SystemEvents (6.0)
+    Milekic.YoLo (3.0.0-dev.31)
+      FSharp.Core (>= 6.0)
     Mono.Cecil (0.11.4)
     NETStandard.Library (2.0.3)
       Microsoft.NETCore.Platforms (>= 1.1)
@@ -389,9 +391,6 @@ NUGET
       Expecto (>= 9.0 < 10.0)
       FSharp.Core (>= 4.6)
       System.Collections.Immutable (>= 1.5)
-  remote: ../Milekic.YoLo/publish
-    Milekic.YoLo (3.0.0-dev.25) - storage: symlink
-      FSharp.Core (>= 6.0)
 
 GROUP Build
 STORAGE: NONE
