@@ -414,7 +414,8 @@ module UploadPackageWithSleet =
     let publishDirectory = __SOURCE_DIRECTORY__ + "/publish"
 
     Target.create "UploadPackageWithSleet" <| fun _ ->
-        if GitHubActions.detect() = false then () else
+        if (GitHubActions.detect() = false ||
+            Directory.Exists(publishDirectory) = false) then () else
 
         let configFile =
             match Environment.environVarOrNone "SLEET_CONFIG", ConnectClient.client with
