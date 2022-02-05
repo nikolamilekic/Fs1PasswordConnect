@@ -1,5 +1,6 @@
 storage none
 source https://api.nuget.org/v3/index.json
+source https://nuget.nikolamilekic.com/index.json
 
 framework: auto-detect
 
