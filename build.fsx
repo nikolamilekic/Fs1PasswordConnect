@@ -433,7 +433,7 @@ module UploadPackageWithSleet =
         match configFile with
         | Some path ->
             DotNet.exec id "sleet" $"push {publishDirectory} -c {path}"
-            |> fun r -> if not r.OK then failwith "Failed to push to Sleet."
+            |> fun r -> if not r.OK then failwith $"Failed to push to Sleet. Errors: {r.Errors}"
         | _ -> ()
 
     [ "Pack"; "Test"; "TestSourceLink" ] ==> "UploadPackageWithSleet"
