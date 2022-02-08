@@ -24,13 +24,25 @@ type VaultInfo = { Id : VaultId; Title : VaultTitle } with
         |> jfield "name" (fun { Title = (VaultTitle t) } -> t)
 type ItemId = ItemId of string
 type ItemTitle = ItemTitle of string
-type ItemInfo = { Id : ItemId; Title : ItemTitle; VaultId : VaultId } with
+type ItemTag = ItemTag of string
+type ItemInfo = {
+    Id : ItemId
+    Title : ItemTitle
+    VaultId : VaultId
+    Tags : ItemTag list
+} with
     static member JsonObjCodec =
-        fun i t v -> { Id = (ItemId i); Title = (ItemTitle t); VaultId = v }
+        fun i t v ts -> {
+            Id = (ItemId i)
+            Title = (ItemTitle t)
+            VaultId = v
+            Tags = List.map ItemTag ts
+        }
         |> withFields
         |> jfield "id" (fun { ItemInfo.Id = (ItemId i) } -> i)
         |> jfield "title" (fun { Title = (ItemTitle t) } -> t)
         |> jfieldWith vaultStubCodec "vault" (fun { VaultId = v } -> v)
+        |> jfield "tags" (fun { Tags = ts } -> ts |> List.map (fun (ItemTag t) -> t))
 type FieldId = FieldId of string
 type FieldLabel = FieldLabel of string
 type FieldValue = FieldValue of string
@@ -49,19 +61,23 @@ type Item = {
     Id : ItemId
     Title : ItemTitle
     VaultId : VaultId
-    Fields : Field list } with
+    Fields : Field list
+    Tags : ItemTag list
+} with
     static member JsonObjCodec =
-        fun i t v f -> {
+        fun i t v f ts -> {
             Id = (ItemId i)
             Title = (ItemTitle t)
             VaultId = v
             Fields = f
+            Tags = List.map ItemTag ts
         }
         |> withFields
         |> jfield "id" (fun { Item.Id = (ItemId i) } -> i)
         |> jfield "title" (fun { Title = (ItemTitle t) } -> t)
         |> jfieldWith vaultStubCodec "vault" (fun { Item.VaultId = v } -> v)
         |> jfield "fields" (fun { Fields = f } -> f)
+        |> jfield "tags" (fun { Tags = ts } -> ts |> List.map (fun (ItemTag t) -> t))
 
 type ConnectError =
     | CriticalFailure of exn
@@ -76,8 +92,8 @@ type ConnectError =
     override this.ToString() =
         match this with
         | CriticalFailure exn -> $"Critical failure: {exn.Message}"
-        | UnexpectedStatusCode code -> $"Connect server return an unexpected status code: {code}"
-        | DecodeError message -> $"Connect server return a result which could not be decoded due to the following error: {message}"
+        | UnexpectedStatusCode code -> $"Connect server returned an unexpected status code: {code}"
+        | DecodeError message -> $"Connect server returned a result which could not be decoded due to the following error: {message}"
         | UnauthorizedAccess -> "Unauthorized access to Connect server"
         | MissingToken -> "Connect server token is missing"
         | VaultNotFound -> "Vault not found"

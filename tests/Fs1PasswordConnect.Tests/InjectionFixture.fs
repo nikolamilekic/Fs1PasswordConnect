@@ -35,8 +35,8 @@ type InjectionFixture() =
             | Some _ ->
                 items
                 |> List.filter (fun i -> i.VaultId = vaultId)
-                |> List.map (fun { Item.Id = id; Title = title; VaultId = vid} ->
-                    { Id =id; Title = title; VaultId = vid })
+                |> List.map (fun { Item.Id = id; Title = title; VaultId = vid; Tags = ts } ->
+                    { Id = id; Title = title; VaultId = vid; Tags = ts })
                 |> result
             | None -> Error VaultNotFound |> ResultT.hoist
 
@@ -68,6 +68,7 @@ type InjectionFixture() =
             Title = ItemTitle title
             VaultId = VaultId vault
             Fields = fields
+            Tags = []
         }
         items <- item::items
     let [<When>] ``the user runs inject with the following text`` text =

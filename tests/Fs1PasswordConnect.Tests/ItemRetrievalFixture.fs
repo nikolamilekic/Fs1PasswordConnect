@@ -89,3 +89,12 @@ type ItemRetrievalFixture() =
                 result :?> VaultInfo list =! expectedVaults
             | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
         | None -> failwith $"No response configured for url: {url}"
+    let [<Then>] ``item with id '(.*)' should contain tag '(.*)'`` itemId tag =
+        test <@ result :? ItemInfo list @>
+        let items = result :?> ItemInfo list
+        let item = items |> List.find (fun item -> item.Id = ItemId itemId)
+        test <@ item.Tags |> List.contains (ItemTag tag) = true @>
+    let [<Then>] ``the item should contain tag '(.*)'`` tag =
+        test <@ result :? Item @>
+        let item = result :?> Item
+        test <@ item.Tags |> List.contains (ItemTag tag) = true @>
