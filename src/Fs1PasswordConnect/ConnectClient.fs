@@ -2,6 +2,7 @@
 module Fs1PasswordConnect.ConnectClient
 
 open System
+open System.Net
 open System.Text
 open FSharpPlus.Data
 open Fleece.SystemTextJson
@@ -14,13 +15,13 @@ let internal hoist x : ConnectClientMonad<'a> = ResultT.hoist x
 
 let internal fromRequestProcessor requestProcessor settings =
     let { Host = (ConnectHost host); Token = (ConnectToken token) } = settings
-    let headers = [ "Authorization", $"Bearer {token}" ]
-    let makeRequest (endpoint : string) = {
-        Url = $"{host.TrimEnd('/')}/v1/{endpoint.TrimStart('/')}"
-        Headers = headers
-    }
     let request (endpoint : string) = monad {
-        try return! requestProcessor (makeRequest endpoint) |> lift
+        let requestBuilder request = {
+            request with
+                Url = $"{host.TrimEnd('/')}/v1/{endpoint.TrimStart('/')}"
+                Headers = [ "Authorization", $"Bearer {token}" ]
+        }
+        try return! requestProcessor requestBuilder |> lift
         with exn -> return! Error (CriticalFailure exn) |> hoist
     }
 
@@ -80,7 +81,8 @@ let internal fromRequestProcessor requestProcessor settings =
     }
 
 let private operationsFromSettings settings =
-    let requestProcessor { Url = url; Headers = headers } = monad {
+    let requestProcessor requestBuilder = monad {
+        let { Url = url; Headers = headers } = requestBuilder Request.Zero
         let! response = Http.AsyncRequest(url, headers = headers)
         let body =
             match response.Body with
@@ -88,6 +90,7 @@ let private operationsFromSettings settings =
             | Binary binary -> Encoding.UTF8.GetString(binary)
         return { StatusCode = response.StatusCode; Body = body }
     }
+
     fromRequestProcessor requestProcessor settings
 
 let internal cacheConnectFunction (f : 'a -> ConnectClientMonad<'b>) =

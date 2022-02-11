@@ -17,7 +17,9 @@ type ItemRetrievalFixture() =
     let mutable responses = Map.empty
     let mutable token = ""
     let mutable host = ""
-    let requestProcessor { Url = url; Headers = headers } = async {
+    let requestProcessor builder = async {
+        let { Url = url; Headers = headers } = builder Request.Zero
+
         receivedCalls <- url::receivedCalls
 
         let expectedHeaders = [ "Authorization", $"Bearer {token}" ]
@@ -97,4 +99,4 @@ type ItemRetrievalFixture() =
     let [<Then>] ``the item should contain tag '(.*)'`` tag =
         test <@ result :? Item @>
         let item = result :?> Item
-        test <@ item.Tags |> List.contains (ItemTag tag) = true @>
+        test <@ item.ItemInfo.Tags |> List.contains (ItemTag tag) = true @>

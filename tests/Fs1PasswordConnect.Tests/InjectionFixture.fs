@@ -17,16 +17,17 @@ type InjectionFixture() =
             | Some v -> v.Id |> result
             | None -> Error VaultNotFound |> ResultT.hoist
         let getItemId (vaultId : VaultId) (itemTitle : ItemTitle) : ConnectClientMonad<ItemId> =
+            let itemInfos = items |>> fun x -> x.ItemInfo
             match vaults |> List.tryFind (fun v -> v.Id = vaultId) with
             | Some _ ->
-                match items |> List.tryFind (fun i -> i.Title = itemTitle && i.VaultId = vaultId) with
+                match itemInfos |> Seq.tryFind (fun i -> i.Title = itemTitle && i.VaultId = vaultId) with
                 | Some i -> result i.Id
                 | None -> Error ItemNotFound |> ResultT.hoist
             | None -> Error VaultNotFound |> ResultT.hoist
         let getItem (vaultId : VaultId) (itemId : ItemId) : ConnectClientMonad<Item> =
             match vaults |> List.tryFind (fun v -> v.Id = vaultId) with
             | Some _ ->
-                match items |> List.tryFind (fun i -> i.Id = itemId && i.VaultId = vaultId) with
+                match items |> List.tryFind (fun i -> i.ItemInfo.Id = itemId && i.ItemInfo.VaultId = vaultId) with
                 | Some i -> result i
                 | None -> Error ItemNotFound |> ResultT.hoist
             | None -> Error VaultNotFound |> ResultT.hoist
@@ -34,9 +35,8 @@ type InjectionFixture() =
             match vaults |> List.tryFind (fun v -> v.Id = vaultId) with
             | Some _ ->
                 items
-                |> List.filter (fun i -> i.VaultId = vaultId)
-                |> List.map (fun { Item.Id = id; Title = title; VaultId = vid; Tags = ts } ->
-                    { Id = id; Title = title; VaultId = vid; Tags = ts })
+                |> List.filter (fun i -> i.ItemInfo.VaultId = vaultId)
+                |> List.map (fun x -> x.ItemInfo)
                 |> result
             | None -> Error VaultNotFound |> ResultT.hoist
 
@@ -64,11 +64,13 @@ type InjectionFixture() =
             })
             |> Seq.toList
         let item = {
-            Id = ItemId id
-            Title = ItemTitle title
-            VaultId = VaultId vault
+            ItemInfo = {
+                Id = ItemId id
+                Title = ItemTitle title
+                VaultId = VaultId vault
+                Tags = []
+            }
             Fields = fields
-            Tags = []
         }
         items <- item::items
     let [<When>] ``the user runs inject with the following text`` text =
