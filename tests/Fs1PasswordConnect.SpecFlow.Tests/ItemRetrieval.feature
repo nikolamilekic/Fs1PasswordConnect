@@ -161,10 +161,6 @@ Scenario: Getting all vaults
     Then the following url should be called 'mock_host/v1/vaults'
     And the client should return all vaults
 
-Scenario: Tags are properly deserialized from item info
-    When the user requests all items in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
-    Then item with id 'wepiqdxdzncjtnvmv5fegud4qy' should contain tag 'LastPass Import 9-19-20'
-
 Scenario: Tags are properly deserialized from items
     When the user requests item with ID 'wepiqdxdzncjtnvmv5fegud4qy' in vault with title 'Automation'
     Then the item should contain tag 'LastPass Import 9-19-20'

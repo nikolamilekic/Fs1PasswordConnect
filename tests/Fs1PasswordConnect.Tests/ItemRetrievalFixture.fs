@@ -1,5 +1,6 @@
 ﻿namespace Fs1PasswordConnect.Tests
 
+open System
 open Fs1PasswordConnect
 open Swensen.Unquote
 open FSharpPlus
@@ -10,7 +11,6 @@ open Fleece.SystemTextJson
 
 [<Binding>]
 type ItemRetrievalFixture() =
-    let mutable result = box ""
     let mutable receivedCalls = []
     let mutable items = Map.empty
     let mutable vaults = Map.empty
@@ -35,10 +35,11 @@ type ItemRetrievalFixture() =
         >> ConnectClientFacade
     let mutable client =
         fromSettings { Host = ConnectHost ""; Token = ConnectToken "" }
-    let run (x : Async<Result<_, ConnectError>>) =
-        match Async.RunSynchronously x with
-        | Ok x -> result <- x
-        | Error e -> result <- e.ToString()
+
+    let mutable itemResult : Result<Item, _> = Error <| CriticalFailure (Exception("Never called"))
+    let mutable itemInfoListResult : Result<ItemInfo list, _> = Error <| CriticalFailure (Exception("Never called"))
+    let mutable vaultInfoListResult : Result<VaultInfo list, _> = Error <| CriticalFailure (Exception("Never called"))
+
     let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (h : string) (t : string) =
         host <- h.TrimEnd('/')
         token <- t
@@ -54,49 +55,42 @@ type ItemRetrievalFixture() =
             |> Map.add vaultId <| vaults
         ``the server returns the following body for call to url '(.*)'`` $"{host}/v1/vaults/{vaultId}/items/{itemId}" body
     let [<When>] ``the user requests item with ID '(.*)' in vault with ID '(.*)'`` (itemId : string) (vaultId : string) =
-        client.GetItem(VaultId vaultId, ItemId itemId) |> run
+        itemResult <- client.GetItem(VaultId vaultId, ItemId itemId) |> Async.RunSynchronously
     let [<When>] ``the user requests item with title '(.*)' in vault with ID '(.*)'`` (itemTitle : string) (vaultId : string) =
-        client.GetItem(VaultId vaultId, ItemTitle itemTitle) |> run
+        itemResult <- client.GetItem(VaultId vaultId, ItemTitle itemTitle) |> Async.RunSynchronously
     let [<When>] ``the user requests item with ID '(.*)' in vault with title '(.*)'`` (itemId : string) (vaultTitle : string) =
-        client.GetItem(VaultTitle vaultTitle, ItemId itemId) |> run
+        itemResult <- client.GetItem(VaultTitle vaultTitle, ItemId itemId) |> Async.RunSynchronously
     let [<When>] ``the user requests item with title '(.*)' in vault with title '(.*)'`` (itemTitle : string) (vaultTitle : string) =
-        client.GetItem(VaultTitle vaultTitle, ItemTitle itemTitle) |> run
+        itemResult <- client.GetItem(VaultTitle vaultTitle, ItemTitle itemTitle) |> Async.RunSynchronously
     let [<Then>] ``the following url should be called '(.*)'`` (url : string) =
         List.contains url receivedCalls
     let [<Then>] ``the client should return item with ID '(.*)'`` (itemId : string) =
         match parseJson items.[itemId] with
-        | Ok (expected : Item) -> result :?> Item =! expected
+        | Ok (expected : Item) -> itemResult =! Ok expected
         | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
     let [<When>] ``the user requests all items in vault with ID '(.*)'`` (vaultId : string) =
-        client.GetVaultItems(VaultId vaultId) |> run
+        itemInfoListResult <- client.GetVaultItems(VaultId vaultId) |> Async.RunSynchronously
     let [<When>] ``the user requests all items in vault with title '(.*)'`` (vaultTitle : string) =
-        client.GetVaultItems(VaultTitle vaultTitle) |> run
+        itemInfoListResult <- client.GetVaultItems(VaultTitle vaultTitle) |> Async.RunSynchronously
     let [<Then>] ``the client should return all items in vault with ID '(.*)'`` (vaultId : string) =
         let url = $"{host}/v1/vaults/{vaultId}/items"
         match Map.tryFind url responses with
         | Some expected ->
             match parseJson expected with
             | Ok (expectedItems : ItemInfo list) ->
-                result :?> ItemInfo list =! expectedItems
+                itemInfoListResult =! Ok expectedItems
             | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
         | None -> failwith $"No response configured for url: {url}"
     let [<When>] ``the user requests all vaults`` () =
-        client.GetVaults() |> run
+        vaultInfoListResult <- client.GetVaults() |> Async.RunSynchronously
     let [<Then>] ``the client should return all vaults`` () =
         let url = $"{host}/v1/vaults"
         match Map.tryFind url responses with
         | Some expected ->
             match parseJson expected with
             | Ok (expectedVaults : VaultInfo list) ->
-                result :?> VaultInfo list =! expectedVaults
+                vaultInfoListResult =! Ok expectedVaults
             | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
         | None -> failwith $"No response configured for url: {url}"
-    let [<Then>] ``item with id '(.*)' should contain tag '(.*)'`` itemId tag =
-        test <@ result :? ItemInfo list @>
-        let items = result :?> ItemInfo list
-        let item = items |> List.find (fun item -> item.Id = ItemId itemId)
-        test <@ item.Tags |> List.contains (ItemTag tag) = true @>
     let [<Then>] ``the item should contain tag '(.*)'`` tag =
-        test <@ result :? Item @>
-        let item = result :?> Item
-        test <@ item.ItemInfo.Tags |> List.contains (ItemTag tag) = true @>
+        test <@ (itemResult |> Result.get).ItemInfo.Tags |> List.contains (ItemTag tag) = true @>
