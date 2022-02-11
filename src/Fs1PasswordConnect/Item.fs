@@ -9,9 +9,9 @@ type Item = {
     Fields : Field list
 } with
     static member JsonObjCodec =
-        fun fs info -> { ItemInfo = info; Fields = fs }
+        fun fs info -> { ItemInfo = info; Fields = (fs |> Option.defaultValue []) }
         |> withFields
-        |> jfield "fields" (fun { Fields = fs } -> fs)
+        |> jfieldOpt "fields" (fun { Fields = fs } -> Some fs)
         |> fun (decoder, encoder) ->
             (fun o -> decoder o >>= fun c -> fst ItemInfo.JsonObjCodec o |>> c),
             (fun item ->

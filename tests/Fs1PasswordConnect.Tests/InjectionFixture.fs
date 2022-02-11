@@ -12,16 +12,16 @@ type InjectionFixture() =
     let mutable items : Item list = []
     let connectClient =
         let getVaults () : ConnectClientMonad<VaultInfo list> = vaults |> result
-        let getVaultId (title : VaultTitle) : ConnectClientMonad<VaultId> =
+        let getVaultInfo (title : VaultTitle) : ConnectClientMonad<VaultInfo> =
             match vaults |> List.tryFind (fun v -> v.Title = title) with
-            | Some v -> v.Id |> result
+            | Some v -> result v
             | None -> Error VaultNotFound |> ResultT.hoist
-        let getItemId (vaultId : VaultId) (itemTitle : ItemTitle) : ConnectClientMonad<ItemId> =
+        let getItemInfo (vaultId : VaultId) (itemTitle : ItemTitle) : ConnectClientMonad<ItemInfo> =
             let itemInfos = items |>> fun x -> x.ItemInfo
             match vaults |> List.tryFind (fun v -> v.Id = vaultId) with
             | Some _ ->
                 match itemInfos |> Seq.tryFind (fun i -> i.Title = itemTitle && i.VaultId = vaultId) with
-                | Some i -> result i.Id
+                | Some i -> result i
                 | None -> Error ItemNotFound |> ResultT.hoist
             | None -> Error VaultNotFound |> ResultT.hoist
         let getItem (vaultId : VaultId) (itemId : ItemId) : ConnectClientMonad<Item> =
@@ -31,7 +31,7 @@ type InjectionFixture() =
                 | Some i -> result i
                 | None -> Error ItemNotFound |> ResultT.hoist
             | None -> Error VaultNotFound |> ResultT.hoist
-        let getItems (vaultId : VaultId) : ConnectClientMonad<ItemInfo list> =
+        let getVaultItems (vaultId : VaultId) : ConnectClientMonad<ItemInfo list> =
             match vaults |> List.tryFind (fun v -> v.Id = vaultId) with
             | Some _ ->
                 items
@@ -42,10 +42,10 @@ type InjectionFixture() =
 
         {
             GetVaults = getVaults
-            GetVaultId = getVaultId
-            GetItemId = getItemId
+            GetVaultInfo = getVaultInfo
+            GetItemInfo = getItemInfo
             GetItem = getItem
-            GetItems = getItems
+            GetVaultItems = getVaultItems
         }
         |> ConnectClientFacade
 

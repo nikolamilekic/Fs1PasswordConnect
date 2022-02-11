@@ -68,9 +68,9 @@ type ItemRetrievalFixture() =
         | Ok (expected : Item) -> result :?> Item =! expected
         | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
     let [<When>] ``the user requests all items in vault with ID '(.*)'`` (vaultId : string) =
-        client.GetItems(VaultId vaultId) |> run
+        client.GetVaultItems(VaultId vaultId) |> run
     let [<When>] ``the user requests all items in vault with title '(.*)'`` (vaultTitle : string) =
-        client.GetItems(VaultTitle vaultTitle) |> run
+        client.GetVaultItems(VaultTitle vaultTitle) |> run
     let [<Then>] ``the client should return all items in vault with ID '(.*)'`` (vaultId : string) =
         let url = $"{host}/v1/vaults/{vaultId}/items"
         match Map.tryFind url responses with

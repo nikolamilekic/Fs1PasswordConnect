@@ -33,20 +33,20 @@ let internal fromRequestProcessor requestProcessor settings =
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    let getVaultId (VaultTitle title) =
+    let getVaultInfo (VaultTitle title) =
         request $"vaults?filter=title eq \"{title}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
-            | Ok (x : VaultInfo::_) -> result x.Id
+            | Ok (x : VaultInfo::_) -> result x
             | Ok [] -> Error VaultNotFound |> hoist
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    let getItemId (VaultId vaultId) (ItemTitle itemTitle) =
+    let getItemInfo (VaultId vaultId) (ItemTitle itemTitle) =
         request $"vaults/{vaultId}/items?filter=title eq \"{itemTitle}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
-            | Ok (x : ItemInfo::_) -> result x.Id
+            | Ok (x : ItemInfo::_) -> result x
             | Ok [] -> Error ItemNotFound |> hoist
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
@@ -62,7 +62,7 @@ let internal fromRequestProcessor requestProcessor settings =
         | { StatusCode = 403 } -> Error UnauthorizedAccess |> hoist
         | { StatusCode = 404 } -> Error ItemNotFound |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    let getItems (VaultId vaultId) =
+    let getVaultItems (VaultId vaultId) =
         request $"vaults/{vaultId}/items" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
@@ -74,10 +74,10 @@ let internal fromRequestProcessor requestProcessor settings =
 
     {
         GetVaults = getVaults
-        GetVaultId = getVaultId
-        GetItemId = getItemId
+        GetVaultInfo = getVaultInfo
+        GetItemInfo = getItemInfo
         GetItem = getItem
-        GetItems = getItems
+        GetVaultItems = getVaultItems
     }
 
 let private operationsFromSettings settings =
@@ -107,10 +107,10 @@ let internal cacheConnectFunction (f : 'a -> ConnectClientMonad<'b>) =
 
 let internal cache inner = {
     GetVaults = cacheConnectFunction inner.GetVaults
-    GetVaultId = cacheConnectFunction inner.GetVaultId
-    GetItemId = cacheConnectFunction (uncurry inner.GetItemId) |> curry
+    GetVaultInfo = cacheConnectFunction inner.GetVaultInfo
+    GetItemInfo = cacheConnectFunction (uncurry inner.GetItemInfo) |> curry
     GetItem = cacheConnectFunction (uncurry inner.GetItem) |> curry
-    GetItems = cacheConnectFunction inner.GetItems
+    GetVaultItems = cacheConnectFunction inner.GetVaultItems
 }
 
 let fromSettings = operationsFromSettings >> ConnectClientFacade

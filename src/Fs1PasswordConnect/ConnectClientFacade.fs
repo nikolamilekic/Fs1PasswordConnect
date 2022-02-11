@@ -6,23 +6,27 @@ open Milekic.YoLo
 
 type ConnectClientFacade internal (client : ConnectClientOperations) =
     member _.GetVaults () = client.GetVaults () |> ResultT.run
-    member _.GetVaultId x = client.GetVaultId x |> ResultT.run
-    member _.GetItemId (x, y) = client.GetItemId x y |> ResultT.run
+    member _.GetVaultInfo x = client.GetVaultInfo x |> ResultT.run
+    member _.GetItemInfo (x, y) = client.GetItemInfo x y |> ResultT.run
     member _.GetItem (x, y) = client.GetItem x y |> ResultT.run
-    member _.GetItems x = client.GetItems x |> ResultT.run
+    member _.GetVaultItems x = client.GetVaultItems x |> ResultT.run
     member _.GetItem(vaultTitle, itemId : ItemId) =
-        client.GetVaultId vaultTitle
-        >>= fun vaultId -> client.GetItem vaultId itemId
+        client.GetVaultInfo vaultTitle
+        >>= fun vaultInfo -> client.GetItem vaultInfo.Id itemId
         |> ResultT.run
     member _.GetItem(vaultId, itemTitle : ItemTitle) =
-        client.GetItemId vaultId itemTitle >>= client.GetItem vaultId
+        client.GetItemInfo vaultId itemTitle
+        >>= fun itemInfo -> client.GetItem vaultId itemInfo.Id
         |> ResultT.run
     member _.GetItem(vaultTitle, itemTitle : ItemTitle) =
-        client.GetVaultId vaultTitle
-        >>= fun vaultId -> client.GetItemId vaultId itemTitle >>= client.GetItem vaultId
+        client.GetVaultInfo vaultTitle
+        >>= fun vaultInfo ->
+            client.GetItemInfo vaultInfo.Id itemTitle
+            >>= fun itemInfo -> client.GetItem vaultInfo.Id itemInfo.Id
         |> ResultT.run
-    member _.GetItems(vaultTitle) =
-        client.GetVaultId vaultTitle >>= client.GetItems
+    member _.GetVaultItems(vaultTitle) =
+        client.GetVaultInfo vaultTitle
+        >>= fun vaultInfo -> client.GetVaultItems vaultInfo.Id
         |> ResultT.run
 
     /// Replaces all tokens of type {{ op://<VaultIdOrTitle/<ItemIdOrTitle>/<FieldIdOrLabel> }} from template
@@ -48,17 +52,17 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
                 }
 
                 //Assume vault is a title
-                match! this.GetVaultId (VaultTitle vault) with
-                | Ok vaultId ->
+                match! this.GetVaultInfo (VaultTitle vault) with
+                | Ok vaultInfo ->
                     //Assume item is a title
-                    match! this.GetItemId (vaultId, ItemTitle item) with
-                    | Ok itemId -> return! getField vaultId itemId
-                    | Error ItemNotFound -> return! getField vaultId (ItemId item) //Maybe item is id
+                    match! this.GetItemInfo (vaultInfo.Id, ItemTitle item) with
+                    | Ok itemInfo -> return! getField vaultInfo.Id itemInfo.Id
+                    | Error ItemNotFound -> return! getField vaultInfo.Id (ItemId item) //Maybe item is id
                     | Error e -> return Error e
                 | _ ->
                     //Assume vault is id
-                    match! this.GetItemId (VaultId vault, ItemTitle item) with
-                    | Ok itemId -> return! getField (VaultId vault) itemId
+                    match! this.GetItemInfo (VaultId vault, ItemTitle item) with
+                    | Ok itemInfo -> return! getField (VaultId vault) itemInfo.Id
                     | Error ItemNotFound -> return! getField (VaultId vault) (ItemId item) //Maybe item is id
                     | Error e -> return Error e
             | _ -> return Ok template
@@ -67,10 +71,10 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
         inner template
 and internal ConnectClientOperations = {
     GetVaults : unit -> ConnectClientMonad<VaultInfo list>
-    GetVaultId : VaultTitle -> ConnectClientMonad<VaultId>
-    GetItemId : VaultId -> ItemTitle -> ConnectClientMonad<ItemId>
+    GetVaultItems : VaultId -> ConnectClientMonad<ItemInfo list>
+    GetVaultInfo : VaultTitle -> ConnectClientMonad<VaultInfo>
+    GetItemInfo : VaultId -> ItemTitle -> ConnectClientMonad<ItemInfo>
     GetItem : VaultId -> ItemId -> ConnectClientMonad<Item>
-    GetItems : VaultId -> ConnectClientMonad<ItemInfo list>
 }
 and ConnectClientMonad<'a> = ResultT<Async<Result<'a, ConnectError>>>
 and ConnectError =
