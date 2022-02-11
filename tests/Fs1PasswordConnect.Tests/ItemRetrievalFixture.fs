@@ -30,7 +30,7 @@ type ItemRetrievalFixture() =
             | Some r -> { Body = r; StatusCode = 200 }
             | None -> failwith $"No response configured for url: {url}"
     }
-    let fromSettings =
+    let fromSettings : _ -> ConnectClientFacade =
         ConnectClient.fromRequestProcessor requestProcessor
         >> ConnectClientFacade
     let mutable client =
@@ -39,6 +39,7 @@ type ItemRetrievalFixture() =
     let mutable itemResult : Result<Item, _> = Error <| CriticalFailure (Exception("Never called"))
     let mutable itemInfoListResult : Result<ItemInfo list, _> = Error <| CriticalFailure (Exception("Never called"))
     let mutable vaultInfoListResult : Result<VaultInfo list, _> = Error <| CriticalFailure (Exception("Never called"))
+    let mutable vaultInfoResult : Result<VaultInfo, _> = Error <| CriticalFailure (Exception("Never called"))
 
     let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (h : string) (t : string) =
         host <- h.TrimEnd('/')
@@ -94,3 +95,35 @@ type ItemRetrievalFixture() =
         | None -> failwith $"No response configured for url: {url}"
     let [<Then>] ``the item should contain tag '(.*)'`` tag =
         test <@ (itemResult |> Result.get).ItemInfo.Tags |> List.contains (ItemTag tag) = true @>
+    let [<Then>] ``the item's title should be '(.*)'`` title =
+        test <@ (itemResult |> Result.get).ItemInfo.Title = ItemTitle title @>
+    let [<Then>] ``the item's id should be '(.*)'`` id =
+        test <@ (itemResult |> Result.get).ItemInfo.Id = ItemId id @>
+    let [<Then>] ``the item's version should be '(.*)'`` (v : int) =
+        test <@ (itemResult |> Result.get).ItemInfo.Version = ItemVersion v @>
+    let [<Then>] ``the item should contain field with id '(.*)', label '(.*)' and value '(.*)'`` id l v =
+        test <@
+            (itemResult |> Result.get).Fields
+            |> List.tryFind (fun item -> item.Id = FieldId id && item.Label = FieldLabel l && item.Value = FieldValue v)
+            |> Option.isSome
+        @>
+    let [<Then>] ``the item should contain url '(.*)'`` u =
+        test <@
+            (itemResult |> Result.get).ItemInfo.Urls
+            |> List.tryFind (fun url -> url.Path = ItemUrlPath u)
+            |> Option.isSome
+        @>
+    let [<When>] ``the user requests vault info for vault with ID '(.*)'`` vaultId =
+        vaultInfoResult <- client.GetVaultInfo (VaultId vaultId) |> Async.RunSynchronously
+    let [<Then>] ``the vault's title should be '(.*)'`` title =
+        test <@ (vaultInfoResult |> Result.get).Title = VaultTitle title @>
+    let [<Then>] ``the vault's ID should be '(.*)'`` id =
+        test <@ (vaultInfoResult |> Result.get).Id = VaultId id @>
+    let [<Then>] ``the vault's version should be '(.*)'`` (v : int) =
+        test <@ (vaultInfoResult |> Result.get).Version = VaultVersion v @>
+    let [<Then>] ``the vault's created at date should be '(.*)'`` date =
+        test <@ (vaultInfoResult |> Result.get).CreatedAt = CreatedAt date @>
+    let [<Then>] ``the vault's updated at date should be '(.*)'`` date =
+        test <@ (vaultInfoResult |> Result.get).UpdatedAt = UpdatedAt date @>
+    let [<Then>] ``the vault's item count should be '(.*)'`` (ic : int) =
+        test <@ (vaultInfoResult |> Result.get).ItemCount = ItemCount ic @>

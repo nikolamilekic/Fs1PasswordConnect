@@ -1,5 +1,6 @@
 ﻿namespace Fs1PasswordConnect
 
+open System
 open Swensen.Unquote
 open FSharpPlus
 open FSharpPlus.Data
@@ -12,8 +13,12 @@ type InjectionFixture() =
     let mutable items : Item list = []
     let connectClient =
         let getVaults () : ConnectClientMonad<VaultInfo list> = vaults |> result
-        let getVaultInfo (title : VaultTitle) : ConnectClientMonad<VaultInfo> =
+        let getVaultInfoByTitle (title : VaultTitle) : ConnectClientMonad<VaultInfo> =
             match vaults |> List.tryFind (fun v -> v.Title = title) with
+            | Some v -> result v
+            | None -> Error VaultNotFound |> ResultT.hoist
+        let getVaultInfoById (id : VaultId) : ConnectClientMonad<VaultInfo> =
+            match vaults |> List.tryFind (fun v -> v.Id = id) with
             | Some v -> result v
             | None -> Error VaultNotFound |> ResultT.hoist
         let getItemInfo (vaultId : VaultId) (itemTitle : ItemTitle) : ConnectClientMonad<ItemInfo> =
@@ -41,8 +46,9 @@ type InjectionFixture() =
             | None -> Error VaultNotFound |> ResultT.hoist
 
         {
-            GetVaults = getVaults
-            GetVaultInfo = getVaultInfo
+            ConnectClientOperations.GetVaults = getVaults
+            GetVaultInfoByTitle = getVaultInfoByTitle
+            GetVaultInfoById = getVaultInfoById
             GetItemInfo = getItemInfo
             GetItem = getItem
             GetVaultItems = getVaultItems
@@ -52,7 +58,14 @@ type InjectionFixture() =
     let mutable result : Result<_, ConnectError> = Ok ""
 
     let [<Given>] ``vault with id "(.*)" and title "(.*)"`` id title =
-        let vault = { Id = VaultId id; Title = VaultTitle title; }
+        let vault = {
+            Id = VaultId id
+            Title = VaultTitle title
+            Version = VaultVersion 0
+            CreatedAt = CreatedAt DateTimeOffset.Now
+            UpdatedAt = UpdatedAt DateTimeOffset.Now
+            ItemCount = ItemCount 0
+        }
         vaults <- vault::vaults
     let [<Given>] ``item with id "(.*)" and title "(.*)" in vault "(.*)" with fields`` id title vault (table : Table) =
         let fields =
@@ -69,6 +82,8 @@ type InjectionFixture() =
                 Title = ItemTitle title
                 VaultId = VaultId vault
                 Tags = []
+                Version = ItemVersion 0
+                Urls = []
             }
             Fields = fields
         }

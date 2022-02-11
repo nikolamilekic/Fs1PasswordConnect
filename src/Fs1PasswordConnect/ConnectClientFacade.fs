@@ -6,12 +6,13 @@ open Milekic.YoLo
 
 type ConnectClientFacade internal (client : ConnectClientOperations) =
     member _.GetVaults () = client.GetVaults () |> ResultT.run
-    member _.GetVaultInfo x = client.GetVaultInfo x |> ResultT.run
+    member _.GetVaultInfo x = client.GetVaultInfoById x |> ResultT.run
+    member _.GetVaultInfo x = client.GetVaultInfoByTitle x |> ResultT.run
     member _.GetItemInfo (x, y) = client.GetItemInfo x y |> ResultT.run
     member _.GetItem (x, y) = client.GetItem x y |> ResultT.run
     member _.GetVaultItems x = client.GetVaultItems x |> ResultT.run
     member _.GetItem(vaultTitle, itemId : ItemId) =
-        client.GetVaultInfo vaultTitle
+        client.GetVaultInfoByTitle vaultTitle
         >>= fun vaultInfo -> client.GetItem vaultInfo.Id itemId
         |> ResultT.run
     member _.GetItem(vaultId, itemTitle : ItemTitle) =
@@ -19,13 +20,13 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
         >>= fun itemInfo -> client.GetItem vaultId itemInfo.Id
         |> ResultT.run
     member _.GetItem(vaultTitle, itemTitle : ItemTitle) =
-        client.GetVaultInfo vaultTitle
+        client.GetVaultInfoByTitle vaultTitle
         >>= fun vaultInfo ->
             client.GetItemInfo vaultInfo.Id itemTitle
             >>= fun itemInfo -> client.GetItem vaultInfo.Id itemInfo.Id
         |> ResultT.run
     member _.GetVaultItems(vaultTitle) =
-        client.GetVaultInfo vaultTitle
+        client.GetVaultInfoByTitle vaultTitle
         >>= fun vaultInfo -> client.GetVaultItems vaultInfo.Id
         |> ResultT.run
 
@@ -72,7 +73,8 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
 and internal ConnectClientOperations = {
     GetVaults : unit -> ConnectClientMonad<VaultInfo list>
     GetVaultItems : VaultId -> ConnectClientMonad<ItemInfo list>
-    GetVaultInfo : VaultTitle -> ConnectClientMonad<VaultInfo>
+    GetVaultInfoById : VaultId -> ConnectClientMonad<VaultInfo>
+    GetVaultInfoByTitle : VaultTitle -> ConnectClientMonad<VaultInfo>
     GetItemInfo : VaultId -> ItemTitle -> ConnectClientMonad<ItemInfo>
     GetItem : VaultId -> ItemId -> ConnectClientMonad<Item>
 }

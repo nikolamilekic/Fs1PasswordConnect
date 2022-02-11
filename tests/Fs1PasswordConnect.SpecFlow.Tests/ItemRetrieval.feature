@@ -120,6 +120,19 @@ Background:
             }
         ]
         """
+    And the server returns the following body for call to url 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda'
+        """
+        {
+            "id": "hfnjvi6aymbsnfc2xeeoheizda",
+            "name": "Automation",
+            "attributeVersion": 1,
+            "contentVersion": 14,
+            "items": 3,
+            "type": "USER_CREATED",
+            "createdAt": "2022-01-21T19:16:59Z",
+            "updatedAt": "2022-01-22T20:30:13Z"
+        }
+        """
 
 Scenario: Get item by ID and vault ID
     When the user requests item with ID 'wepiqdxdzncjtnvmv5fegud4qy' in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
@@ -161,6 +174,20 @@ Scenario: Getting all vaults
     Then the following url should be called 'mock_host/v1/vaults'
     And the client should return all vaults
 
-Scenario: Tags are properly deserialized from items
+Scenario: Items are properly deserialized
     When the user requests item with ID 'wepiqdxdzncjtnvmv5fegud4qy' in vault with title 'Automation'
     Then the item should contain tag 'LastPass Import 9-19-20'
+    And the item's title should be 'Test Login'
+    And the item's id should be 'wepiqdxdzncjtnvmv5fegud4qy'
+    And the item's version should be '3'
+    And the item should contain field with id 'field id', label 'label' and value 'value'
+    And the item should contain url 'https://www.google.com'
+
+Scenario: Vault info is properly deserialized
+    When the user requests vault info for vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
+    Then the vault's ID should be 'hfnjvi6aymbsnfc2xeeoheizda'
+    And the vault's title should be 'Automation'
+    And the vault's version should be '14'
+    And the vault's created at date should be '2022-01-21T19:16:59Z'
+    And the vault's updated at date should be '2022-01-22T20:30:13Z'
+    And the vault's item count should be '3'

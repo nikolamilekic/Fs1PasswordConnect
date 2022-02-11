@@ -33,7 +33,7 @@ let internal fromRequestProcessor requestProcessor settings =
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
-    let getVaultInfo (VaultTitle title) =
+    let getVaultInfoByTitle (VaultTitle title) =
         request $"vaults?filter=title eq \"{title}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
             match parseJson response with
@@ -41,6 +41,16 @@ let internal fromRequestProcessor requestProcessor settings =
             | Ok [] -> Error VaultNotFound |> hoist
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
+        | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
+    let getVaultInfoById (VaultId id) =
+        request $"vaults/{id}" >>= function
+        | ({ StatusCode = 200; Body = response } : Response) ->
+            match parseJson response with
+            | Ok (x : VaultInfo) -> result x
+            | Error error -> Error (DecodeError (error.ToString())) |> hoist
+        | { StatusCode = 401 } -> Error MissingToken |> hoist
+        | { StatusCode = 403 } -> Error UnauthorizedAccess |> hoist
+        | { StatusCode = 404 } -> Error VaultNotFound |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
     let getItemInfo (VaultId vaultId) (ItemTitle itemTitle) =
         request $"vaults/{vaultId}/items?filter=title eq \"{itemTitle}\"" >>= function
@@ -74,7 +84,8 @@ let internal fromRequestProcessor requestProcessor settings =
 
     {
         GetVaults = getVaults
-        GetVaultInfo = getVaultInfo
+        GetVaultInfoByTitle = getVaultInfoByTitle
+        GetVaultInfoById = getVaultInfoById
         GetItemInfo = getItemInfo
         GetItem = getItem
         GetVaultItems = getVaultItems
@@ -107,7 +118,8 @@ let internal cacheConnectFunction (f : 'a -> ConnectClientMonad<'b>) =
 
 let internal cache inner = {
     GetVaults = cacheConnectFunction inner.GetVaults
-    GetVaultInfo = cacheConnectFunction inner.GetVaultInfo
+    GetVaultInfoByTitle = cacheConnectFunction inner.GetVaultInfoByTitle
+    GetVaultInfoById = cacheConnectFunction inner.GetVaultInfoById
     GetItemInfo = cacheConnectFunction (uncurry inner.GetItemInfo) |> curry
     GetItem = cacheConnectFunction (uncurry inner.GetItem) |> curry
     GetVaultItems = cacheConnectFunction inner.GetVaultItems
