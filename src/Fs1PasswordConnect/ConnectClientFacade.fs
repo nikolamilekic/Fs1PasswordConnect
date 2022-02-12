@@ -8,11 +8,11 @@ open Milekic.YoLo
 
 type ConnectClientFacade internal (client : ConnectClientOperations) =
     member _.GetVaults () = client.GetVaults () |> ResultT.run
-    member _.GetVaultInfo x = client.GetVaultInfoById x |> ResultT.run
-    member _.GetVaultInfo x = client.GetVaultInfoByTitle x |> ResultT.run
-    member _.GetItemInfo (x, y) = client.GetItemInfo x y |> ResultT.run
-    member _.GetItem (x, y) = client.GetItem x y |> ResultT.run
-    member _.GetVaultItems x = client.GetVaultItems x |> ResultT.run
+    member _.GetVaultInfo vaultId = client.GetVaultInfoById vaultId |> ResultT.run
+    member _.GetVaultInfo vaultTitle = client.GetVaultInfoByTitle vaultTitle |> ResultT.run
+    member _.GetItemInfo (vaultId, itemTitle) = client.GetItemInfo vaultId itemTitle |> ResultT.run
+    member _.GetItem (vaultId, itemId) = client.GetItem vaultId itemId |> ResultT.run
+    member _.GetVaultItems vaultId = client.GetVaultItems vaultId |> ResultT.run
     member _.GetItem(vaultTitle, itemId : ItemId) =
         client.GetVaultInfoByTitle vaultTitle
         >>= fun vaultInfo -> client.GetItem vaultInfo.Id itemId
