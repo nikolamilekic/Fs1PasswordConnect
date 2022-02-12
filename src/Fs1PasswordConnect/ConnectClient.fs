@@ -15,15 +15,17 @@ let internal hoist x : ConnectClientMonad<'a> = ResultT.hoist x
 
 let internal fromRequestProcessor requestProcessor settings =
     let { Host = (ConnectHost host); Token = (ConnectToken token) } = settings
-    let request (endpoint : string) = monad {
+    let requestWithBuilder requestBuilder = monad {
+        try return! requestProcessor requestBuilder |> lift
+        with exn -> return! Error (CriticalFailure exn) |> hoist
+    }
+    let request (endpoint : string) =
         let requestBuilder request = {
             request with
                 Url = $"{host.TrimEnd('/')}/v1/{endpoint.TrimStart('/')}"
                 Headers = [ "Authorization", $"Bearer {token}" ]
         }
-        try return! requestProcessor requestBuilder |> lift
-        with exn -> return! Error (CriticalFailure exn) |> hoist
-    }
+        requestWithBuilder requestBuilder
 
     let getVaults () =
         request "vaults" >>= function
@@ -81,6 +83,20 @@ let internal fromRequestProcessor requestProcessor settings =
         | { StatusCode = 401 } -> Error MissingToken |> hoist
         | { StatusCode = 404 } -> Error VaultNotFound |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
+    let getFile (FileContentPath path) =
+        let requestBuilder request = {
+            request with
+                Url = $"{host.TrimEnd('/')}/{path.TrimStart('/')}"
+                Headers = [ "Authorization", $"Bearer {token}" ]
+                RequestStream = true
+        }
+        requestWithBuilder requestBuilder >>= function
+        | ({ StatusCode = 200; Stream = stream } : Response) ->
+            result (stream |> Option.get)
+        | { StatusCode = 401 } -> Error MissingToken |> hoist
+        | { StatusCode = 403 } -> Error UnauthorizedAccess |> hoist
+        | { StatusCode = 404 } -> Error FileNotFound |> hoist
+        | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
 
     {
         GetVaults = getVaults
@@ -89,17 +105,31 @@ let internal fromRequestProcessor requestProcessor settings =
         GetItemInfo = getItemInfo
         GetItem = getItem
         GetVaultItems = getVaultItems
+        GetFile = getFile
     }
 
 let private operationsFromSettings settings =
     let requestProcessor requestBuilder = monad {
-        let { Url = url; Headers = headers } = requestBuilder Request.Zero
-        let! response = Http.AsyncRequest(url, headers = headers)
-        let body =
-            match response.Body with
-            | Text text -> text
-            | Binary binary -> Encoding.UTF8.GetString(binary)
-        return { StatusCode = response.StatusCode; Body = body }
+        let {
+            Url = url
+            Headers = headers
+            RequestStream = requestStream
+        } = requestBuilder Request.Zero
+
+        if not requestStream then
+            let! response = Http.AsyncRequest(url, headers = headers)
+            let body =
+                match response.Body with
+                | Text text -> text
+                | Binary binary -> Encoding.UTF8.GetString(binary)
+            return { StatusCode = response.StatusCode; Body = body; Stream = None }
+        else
+            let! response = Http.AsyncRequestStream(url, headers = headers)
+            return {
+                StatusCode = response.StatusCode
+                Body = ""
+                Stream = Some response.ResponseStream
+            }
     }
 
     fromRequestProcessor requestProcessor settings
@@ -123,6 +153,7 @@ let internal cache inner = {
     GetItemInfo = cacheConnectFunction (uncurry inner.GetItemInfo) |> curry
     GetItem = cacheConnectFunction (uncurry inner.GetItem) |> curry
     GetVaultItems = cacheConnectFunction inner.GetVaultItems
+    GetFile = inner.GetFile
 }
 
 let fromSettings = operationsFromSettings >> ConnectClientFacade

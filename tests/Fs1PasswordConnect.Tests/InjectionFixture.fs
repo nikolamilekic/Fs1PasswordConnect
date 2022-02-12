@@ -52,6 +52,7 @@ type InjectionFixture() =
             GetItemInfo = getItemInfo
             GetItem = getItem
             GetVaultItems = getVaultItems
+            GetFile = fun _ -> Error (CriticalFailure (Exception("Not implemented in fixture"))) |> ResultT.hoist
         }
         |> ConnectClientFacade
 
@@ -86,6 +87,7 @@ type InjectionFixture() =
                 Urls = []
             }
             Fields = fields
+            Files = []
         }
         items <- item::items
     let [<When>] ``the user runs inject with the following text`` text =

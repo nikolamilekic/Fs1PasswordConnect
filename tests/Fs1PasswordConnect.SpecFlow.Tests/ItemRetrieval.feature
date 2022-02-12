@@ -39,6 +39,14 @@ Background:
                     "primary": true,
                     "href": "https://www.google.com"
                 }
+            ],
+            "files": [
+                {
+                    "id": "fooaktb2fvbvdkarwm2crklmei",
+                    "name": "profile.png",
+                    "size": 94941,
+                    "content_path": "/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy/files/fooaktb2fvbvdkarwm2crklmei/content"
+                }
             ]
         }
         """
@@ -181,6 +189,7 @@ Scenario: Items are properly deserialized
     And the item's id should be 'wepiqdxdzncjtnvmv5fegud4qy'
     And the item's version should be '3'
     And the item should contain field with id 'field id', label 'label' and value 'value'
+    And the item should contain file with id 'fooaktb2fvbvdkarwm2crklmei', name 'profile.png', size '94941' and path '/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy/files/fooaktb2fvbvdkarwm2crklmei/content'
     And the item should contain url 'https://www.google.com'
 
 Scenario: Vault info is properly deserialized
@@ -191,3 +200,10 @@ Scenario: Vault info is properly deserialized
     And the vault's created at date should be '2022-01-21T19:16:59Z'
     And the vault's updated at date should be '2022-01-22T20:30:13Z'
     And the vault's item count should be '3'
+
+Scenario: Content path includes version (v1) so when downloading file the version should not be duplicated
+    Given the server returns the following body for call to url 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy/files/fooaktb2fvbvdkarwm2crklmei/content'
+        """
+        """
+    When the user requests file with content path '/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy/files/fooaktb2fvbvdkarwm2crklmei/content'
+    Then the following url should be called 'mock_host/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy/files/fooaktb2fvbvdkarwm2crklmei/content'

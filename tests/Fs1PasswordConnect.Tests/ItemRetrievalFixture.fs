@@ -1,6 +1,7 @@
 ﻿namespace Fs1PasswordConnect.Tests
 
 open System
+open System.IO
 open Fs1PasswordConnect
 open Swensen.Unquote
 open FSharpPlus
@@ -18,7 +19,7 @@ type ItemRetrievalFixture() =
     let mutable token = ""
     let mutable host = ""
     let requestProcessor builder = async {
-        let { Url = url; Headers = headers } = builder Request.Zero
+        let { Request.Url = url; Headers = headers } = builder Request.Zero
 
         receivedCalls <- url::receivedCalls
 
@@ -27,7 +28,7 @@ type ItemRetrievalFixture() =
 
         return
             match Map.tryFind url responses with
-            | Some r -> { Body = r; StatusCode = 200 }
+            | Some r -> { Body = r; StatusCode = 200; Stream = Some (new MemoryStream()) }
             | None -> failwith $"No response configured for url: {url}"
     }
     let fromSettings : _ -> ConnectClientFacade =
@@ -40,6 +41,7 @@ type ItemRetrievalFixture() =
     let mutable itemInfoListResult : Result<ItemInfo list, _> = Error <| CriticalFailure (Exception("Never called"))
     let mutable vaultInfoListResult : Result<VaultInfo list, _> = Error <| CriticalFailure (Exception("Never called"))
     let mutable vaultInfoResult : Result<VaultInfo, _> = Error <| CriticalFailure (Exception("Never called"))
+    let mutable fileContentResult : Result<Stream, _> = Error <| CriticalFailure (Exception("Never called"))
 
     let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (h : string) (t : string) =
         host <- h.TrimEnd('/')
@@ -64,7 +66,7 @@ type ItemRetrievalFixture() =
     let [<When>] ``the user requests item with title '(.*)' in vault with title '(.*)'`` (itemTitle : string) (vaultTitle : string) =
         itemResult <- client.GetItem(VaultTitle vaultTitle, ItemTitle itemTitle) |> Async.RunSynchronously
     let [<Then>] ``the following url should be called '(.*)'`` (url : string) =
-        List.contains url receivedCalls
+        test <@ List.contains url receivedCalls @>
     let [<Then>] ``the client should return item with ID '(.*)'`` (itemId : string) =
         match parseJson items.[itemId] with
         | Ok (expected : Item) -> itemResult =! Ok expected
@@ -127,3 +129,15 @@ type ItemRetrievalFixture() =
         test <@ (vaultInfoResult |> Result.get).UpdatedAt = UpdatedAt date @>
     let [<Then>] ``the vault's item count should be '(.*)'`` (ic : int) =
         test <@ (vaultInfoResult |> Result.get).ItemCount = ItemCount ic @>
+    let [<Then>] ``the item should contain file with id '(.*)', name '(.*)', size '(.*)' and path '(.*)'`` id n s p =
+        test <@
+            (itemResult |> Result.get).Files
+            |> List.tryFind (fun item ->
+                item.Id = FileId id &&
+                item.Name = FileName n &&
+                item.Size = FileSize s &&
+                item.Path = FileContentPath p)
+            |> Option.isSome
+        @>
+    let [<When>] ``the user requests file with content path '(.*)'`` path =
+        fileContentResult <- client.GetFile (FileContentPath path) |> Async.RunSynchronously

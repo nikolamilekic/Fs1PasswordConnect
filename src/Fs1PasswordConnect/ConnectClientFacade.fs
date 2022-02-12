@@ -1,7 +1,9 @@
 ﻿namespace Fs1PasswordConnect
 
+open System.IO
 open FSharpPlus.Data
 open FSharpPlus
+open Fs1PasswordConnect
 open Milekic.YoLo
 
 type ConnectClientFacade internal (client : ConnectClientOperations) =
@@ -25,6 +27,7 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
             client.GetItemInfo vaultInfo.Id itemTitle
             >>= fun itemInfo -> client.GetItem vaultInfo.Id itemInfo.Id
         |> ResultT.run
+    member _.GetFile(contentPath)  = client.GetFile contentPath |> ResultT.run
     member _.GetVaultItems(vaultTitle) =
         client.GetVaultInfoByTitle vaultTitle
         >>= fun vaultInfo -> client.GetVaultItems vaultInfo.Id
@@ -77,6 +80,7 @@ and internal ConnectClientOperations = {
     GetVaultInfoByTitle : VaultTitle -> ConnectClientMonad<VaultInfo>
     GetItemInfo : VaultId -> ItemTitle -> ConnectClientMonad<ItemInfo>
     GetItem : VaultId -> ItemId -> ConnectClientMonad<Item>
+    GetFile : FileContentPath -> ConnectClientMonad<Stream>
 }
 and ConnectClientMonad<'a> = ResultT<Async<Result<'a, ConnectError>>>
 and ConnectError =
@@ -88,6 +92,7 @@ and ConnectError =
     | VaultNotFound
     | ItemNotFound
     | FieldNotFound
+    | FileNotFound
     with
     override this.ToString() =
         match this with
@@ -99,3 +104,4 @@ and ConnectError =
         | VaultNotFound -> "Vault not found"
         | ItemNotFound -> "Item not found"
         | FieldNotFound -> "Field not found"
+        | FileNotFound -> "File not found"
