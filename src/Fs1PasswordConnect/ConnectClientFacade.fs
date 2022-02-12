@@ -33,25 +33,47 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
         >>= fun vaultInfo -> client.GetVaultItems vaultInfo.Id
         |> ResultT.run
 
-    /// Replaces all tokens of type {{ op://<VaultIdOrTitle/<ItemIdOrTitle>/<FieldIdOrLabel> }} from template
+    /// Replaces all tokens of type {{ op://<VaultIdOrTitle/<ItemIdOrTitle>/<FieldIdLabelFileIdOrFileName> }} from template
     /// with the values of the corresponding fields.
     member this.Inject template =
         let rec inner (template : string) : Async<Result<string, ConnectError>> = async {
             match template with
-            | Regex "{{ op://(.+)/(.+)/(.+) }}" [ vault; item; field ] ->
-                let replacement = "{{ " + $"op://{vault}/{item}/{field}" + " }}"
+            | Regex "{{ op://(.+)/(.+)/(.+) }}" [ vault; item; fieldOrFile ] ->
+                let replacement = "{{ " + $"op://{vault}/{item}/{fieldOrFile}" + " }}"
 
-                let getField (vaultId : VaultId) (itemId : ItemId) = async {
+                let getField item = async {
+                    let field =
+                        item.Fields
+                        |> List.tryFind (fun { Id = FieldId id; Label = FieldLabel label } ->
+                            id = fieldOrFile || label = fieldOrFile)
+                    match field with
+                    | Some { Value = FieldValue v } ->
+                        return! (template.Replace(replacement, v) |> inner)
+                    | None -> return Error FieldNotFound
+                }
+
+                let getFile item = async {
+                    let file =
+                        item.Files
+                        |> List.tryFind (fun { File.Id = FileId id; Name = FileName name } ->
+                            id = fieldOrFile || name = fieldOrFile)
+                    match file with
+                    | Some { Path = cp } ->
+                        match! this.GetFile cp with
+                        | Ok stream ->
+                            use reader = new StreamReader(stream)
+                            let! v = reader.ReadToEndAsync() |> Async.AwaitTask
+                            return! (template.Replace(replacement, v) |> inner)
+                        | Error e -> return Error e
+                    | None -> return Error FieldNotFound
+                }
+
+                let getFieldOrFile (vaultId : VaultId) (itemId : ItemId) = async {
                     match! this.GetItem(vaultId, itemId) with
                     | Ok item ->
-                        let field =
-                            item.Fields
-                            |> List.tryFind (fun { Id = FieldId id; Label = FieldLabel label } ->
-                                id = field || label = field)
-                        match field with
-                        | Some { Value = FieldValue v } ->
-                            return! (template.Replace(replacement, v) |> inner)
-                        | None -> return Error FieldNotFound
+                        match! getField item with
+                        | Ok x -> return Ok x
+                        | Error _ -> return! getFile item
                     | Error e -> return Error e
                 }
 
@@ -60,14 +82,14 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
                 | Ok vaultInfo ->
                     //Assume item is a title
                     match! this.GetItemInfo (vaultInfo.Id, ItemTitle item) with
-                    | Ok itemInfo -> return! getField vaultInfo.Id itemInfo.Id
-                    | Error ItemNotFound -> return! getField vaultInfo.Id (ItemId item) //Maybe item is id
+                    | Ok itemInfo -> return! getFieldOrFile vaultInfo.Id itemInfo.Id
+                    | Error ItemNotFound -> return! getFieldOrFile vaultInfo.Id (ItemId item) //Maybe item is id
                     | Error e -> return Error e
                 | _ ->
                     //Assume vault is id
                     match! this.GetItemInfo (VaultId vault, ItemTitle item) with
-                    | Ok itemInfo -> return! getField (VaultId vault) itemInfo.Id
-                    | Error ItemNotFound -> return! getField (VaultId vault) (ItemId item) //Maybe item is id
+                    | Ok itemInfo -> return! getFieldOrFile (VaultId vault) itemInfo.Id
+                    | Error ItemNotFound -> return! getFieldOrFile (VaultId vault) (ItemId item) //Maybe item is id
                     | Error e -> return Error e
             | _ -> return Ok template
         }
