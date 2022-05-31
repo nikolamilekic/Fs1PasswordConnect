@@ -33,13 +33,21 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
         >>= fun vaultInfo -> client.GetVaultItems vaultInfo.Id
         |> ResultT.run
 
+    static member private InjectPattern = "{{ op://(.+)/(.+)/(.+) }}"
+
+    /// Returns true if the given string is a valid template for injecting
+    static member IsTemplate template =
+        match template with
+        | Regex ConnectClientFacade.InjectPattern [ _; _; _ ] -> true
+        | _ -> false
+
     /// Replaces all tokens of type {{ op://<VaultIdOrTitle/<ItemIdOrTitle>/<FieldIdLabelFileIdOrFileName> }} from template
     /// with the values of the corresponding fields
     /// and returns the resulting string together with a list of replacements that were made.
     member this.InjectAndReturnReplacements template =
         let rec inner replacements (template : string) : Async<Result<string * (string * string) list, ConnectError>> = async {
             match template with
-            | Regex "{{ op://(.+)/(.+)/(.+) }}" [ vault; item; fieldOrFile ] ->
+            | Regex ConnectClientFacade.InjectPattern [ vault; item; fieldOrFile ] ->
                 let replacement = "{{ " + $"op://{vault}/{item}/{fieldOrFile}" + " }}"
 
                 let getField item = async {

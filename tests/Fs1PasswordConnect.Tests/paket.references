@@ -6,3 +6,5 @@ FSharpPlus
 Milekic.YoLo
 Fleece.SystemTextJson
 FSharp.Data
+Expecto
+YoloDev.Expecto.TestSdk

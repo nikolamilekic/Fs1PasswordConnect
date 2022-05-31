@@ -21,3 +21,4 @@ nuget SpecFlow.xUnit
 nuget xunit
 nuget xunit.runner.visualstudio
 nuget YoloDev.Expecto.TestSdk
+nuget Expecto
