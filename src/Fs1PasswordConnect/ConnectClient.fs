@@ -30,7 +30,7 @@ let internal fromRequestProcessor requestProcessor settings =
     let getVaults () =
         request "vaults" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
-            match parseJson response with
+            match ofJsonText response with
             | Ok (vaults : VaultInfo list) -> result vaults
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
@@ -38,7 +38,7 @@ let internal fromRequestProcessor requestProcessor settings =
     let getVaultInfoByTitle (VaultTitle title) =
         request $"vaults?filter=title eq \"{title}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
-            match parseJson response with
+            match ofJsonText response with
             | Ok (x : VaultInfo::_) -> result x
             | Ok [] -> Error VaultNotFound |> hoist
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
@@ -47,7 +47,7 @@ let internal fromRequestProcessor requestProcessor settings =
     let getVaultInfoById (VaultId id) =
         request $"vaults/{id}" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
-            match parseJson response with
+            match ofJsonText response with
             | Ok (x : VaultInfo) -> result x
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
@@ -57,7 +57,7 @@ let internal fromRequestProcessor requestProcessor settings =
     let getItemInfo (VaultId vaultId) (ItemTitle itemTitle) =
         request $"vaults/{vaultId}/items?filter=title eq \"{itemTitle}\"" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
-            match parseJson response with
+            match ofJsonText response with
             | Ok (x : ItemInfo::_) -> result x
             | Ok [] -> Error ItemNotFound |> hoist
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
@@ -67,7 +67,7 @@ let internal fromRequestProcessor requestProcessor settings =
     let getItem (VaultId vaultId) (ItemId itemId) =
         request $"vaults/{vaultId}/items/{itemId}" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
-            match parseJson response with
+            match ofJsonText response with
             | Ok (x : Item) -> result x
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist
@@ -77,7 +77,7 @@ let internal fromRequestProcessor requestProcessor settings =
     let getVaultItems (VaultId vaultId) =
         request $"vaults/{vaultId}/items" >>= function
         | ({ StatusCode = 200; Body = response } : Response) ->
-            match parseJson response with
+            match ofJsonText response with
             | Ok (xs : ItemInfo list) -> result xs
             | Error error -> Error (DecodeError (error.ToString())) |> hoist
         | { StatusCode = 401 } -> Error MissingToken |> hoist

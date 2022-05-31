@@ -1,14 +1,14 @@
 ﻿namespace Fs1PasswordConnect
 
 open System.IO
-open Fleece.SystemTextJson
+open Fleece
 
 type ConnectClientSettings = { Host : ConnectHost; Token : ConnectToken } with
-    static member JsonObjCodec =
+    static member get_Codec () =
         fun h t -> { Host = ConnectHost h; Token = ConnectToken t }
-        |> withFields
-        |> jfield "Host" (fun { Host = (ConnectHost h) } -> h)
-        |> jfield "Token" (fun { Token = (ConnectToken t) } -> t)
+        <!> jreq "Host" (fun { Host = (ConnectHost h) } -> Some h)
+        <*> jreq "Token" (fun { Token = (ConnectToken t) } -> Some t)
+        |> ofObjCodec
 and ConnectHost = ConnectHost of string
 and ConnectToken = ConnectToken of string
 

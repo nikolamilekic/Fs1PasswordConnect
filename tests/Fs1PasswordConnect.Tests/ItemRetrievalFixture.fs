@@ -68,7 +68,7 @@ type ItemRetrievalFixture() =
     let [<Then>] ``the following url should be called '(.*)'`` (url : string) =
         test <@ List.contains url receivedCalls @>
     let [<Then>] ``the client should return item with ID '(.*)'`` (itemId : string) =
-        match parseJson items.[itemId] with
+        match ofJsonText items.[itemId] with
         | Ok (expected : Item) -> itemResult =! Ok expected
         | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
     let [<When>] ``the user requests all items in vault with ID '(.*)'`` (vaultId : string) =
@@ -79,7 +79,7 @@ type ItemRetrievalFixture() =
         let url = $"{host}/v1/vaults/{vaultId}/items"
         match Map.tryFind url responses with
         | Some expected ->
-            match parseJson expected with
+            match ofJsonText expected with
             | Ok (expectedItems : ItemInfo list) ->
                 itemInfoListResult =! Ok expectedItems
             | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
@@ -90,7 +90,7 @@ type ItemRetrievalFixture() =
         let url = $"{host}/v1/vaults"
         match Map.tryFind url responses with
         | Some expected ->
-            match parseJson expected with
+            match ofJsonText expected with
             | Ok (expectedVaults : VaultInfo list) ->
                 vaultInfoListResult =! Ok expectedVaults
             | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"

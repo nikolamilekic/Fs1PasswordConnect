@@ -1,7 +1,6 @@
 ﻿namespace Fs1PasswordConnect
 
-open System.Collections.Generic
-open Fleece.SystemTextJson
+open Fleece
 open FSharpPlus
 
 type Item = {
@@ -9,18 +8,17 @@ type Item = {
     Fields : Field list
     Files : File list
 } with
-    static member JsonObjCodec =
+    static member get_Codec () =
+        let itemInfo =
+            let c = ItemInfo.get_ObjCodec ()
+            Codec.decode c <-> (fun { ItemInfo = x } -> Codec.encode c x)
+
         fun fields files info -> {
             ItemInfo = info
             Fields = (fields |> Option.defaultValue [])
             Files = (files |> Option.defaultValue [])
         }
-        |> withFields
-        |> jfieldOpt "fields" (fun { Fields = fs } -> Some fs)
-        |> jfieldOpt "files" (fun { Files = fs } -> Some fs)
-        |> fun (decoder, encoder) ->
-            (fun o -> decoder o >>= fun c -> fst ItemInfo.JsonObjCodec o |>> c),
-            (fun item ->
-                let fromItem = encoder item |> seq
-                let fromItemInfo = snd ItemInfo.JsonObjCodec item.ItemInfo |> seq
-                Dictionary(fromItem ++ fromItemInfo) :> IReadOnlyDictionary<_, _>)
+        <!> jopt "fields" (fun { Fields = fs } -> Some fs)
+        <*> jopt "files" (fun { Files = fs } -> Some fs)
+        <*> itemInfo
+        |> ofObjCodec
