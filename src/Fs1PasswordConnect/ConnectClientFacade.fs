@@ -34,9 +34,10 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
         |> ResultT.run
 
     /// Replaces all tokens of type {{ op://<VaultIdOrTitle/<ItemIdOrTitle>/<FieldIdLabelFileIdOrFileName> }} from template
-    /// with the values of the corresponding fields.
-    member this.Inject template =
-        let rec inner (template : string) : Async<Result<string, ConnectError>> = async {
+    /// with the values of the corresponding fields
+    /// and returns the resulting string together with a list of replacements that were made.
+    member this.InjectAndReturnReplacements template =
+        let rec inner replacements (template : string) : Async<Result<string * (string * string) list, ConnectError>> = async {
             match template with
             | Regex "{{ op://(.+)/(.+)/(.+) }}" [ vault; item; fieldOrFile ] ->
                 let replacement = "{{ " + $"op://{vault}/{item}/{fieldOrFile}" + " }}"
@@ -48,7 +49,9 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
                             id = fieldOrFile || label = fieldOrFile)
                     match field with
                     | Some { Value = FieldValue v } ->
-                        return! (template.Replace(replacement, v) |> inner)
+                        return!
+                            template.Replace(replacement, v)
+                            |> inner ((replacement, v)::replacements)
                     | None -> return Error FieldNotFound
                 }
 
@@ -63,7 +66,9 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
                         | Ok stream ->
                             use reader = new StreamReader(stream)
                             let! v = reader.ReadToEndAsync() |> Async.AwaitTask
-                            return! (template.Replace(replacement, v) |> inner)
+                            return!
+                                template.Replace(replacement, v)
+                                |> inner ((replacement, v)::replacements)
                         | Error e -> return Error e
                     | None -> return Error FieldNotFound
                 }
@@ -91,10 +96,18 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
                     | Ok itemInfo -> return! getFieldOrFile (VaultId vault) itemInfo.Id
                     | Error ItemNotFound -> return! getFieldOrFile (VaultId vault) (ItemId item) //Maybe item is id
                     | Error e -> return Error e
-            | _ -> return Ok template
+            | _ -> return Ok (template, replacements |> List.rev)
         }
 
-        inner template
+        inner [] template
+
+    /// Replaces all tokens of type {{ op://<VaultIdOrTitle/<ItemIdOrTitle>/<FieldIdLabelFileIdOrFileName> }} from template
+    /// with the values of the corresponding fields.
+    member this.Inject template : Async<Result<string, ConnectError>> = async {
+        let! result = this.InjectAndReturnReplacements template
+        return result |>> fst
+    }
+
 and internal ConnectClientOperations = {
     GetVaults : unit -> ConnectClientMonad<VaultInfo list>
     GetVaultItems : VaultId -> ConnectClientMonad<ItemInfo list>

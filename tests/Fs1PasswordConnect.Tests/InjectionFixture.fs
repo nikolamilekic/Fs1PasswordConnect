@@ -56,7 +56,7 @@ type InjectionFixture() =
         }
         |> ConnectClientFacade
 
-    let mutable result : Result<_, ConnectError> = Ok ""
+    let mutable result : Result<obj, ConnectError> = Ok ""
 
     let [<Given>] ``vault with id "(.*)" and title "(.*)"`` id title =
         let vault = {
@@ -72,9 +72,9 @@ type InjectionFixture() =
         let fields =
             table.Rows
             |> Seq.map (fun (row : TableRow) -> {
-                Id = FieldId row.[0]
-                Label = FieldLabel row.[1]
-                Value = FieldValue row.[2]
+                Id = FieldId row[0]
+                Label = FieldLabel row[1]
+                Value = FieldValue row[2]
             })
             |> Seq.toList
         let item = {
@@ -91,5 +91,22 @@ type InjectionFixture() =
         }
         items <- item::items
     let [<When>] ``the user runs inject with the following text`` text =
-        result <- connectClient.Inject text |> Async.RunSynchronously
+        result <- Async.RunSynchronously <| async {
+            let! result = connectClient.Inject text
+            return result |>> box
+        }
     let [<Then>] ``the result should be`` expected = result =! (Ok expected)
+    let [<When>] ``the user runs inject with replacements on the following text`` text =
+        result <- Async.RunSynchronously <| async {
+            let! result = connectClient.InjectAndReturnReplacements text
+            return result |>> box
+        }
+    let [<Then>] ``the returned replacements should be should be`` (table : Table) =
+        let expected =
+            table.Rows
+            |> Seq.map (fun (row : TableRow) -> (row[0], row[1]))
+            |> Seq.toList
+        let actual = result |>> fun x ->
+            let (_ : string, r : (string * string) list) = unbox x
+            r
+        actual =! Ok expected
