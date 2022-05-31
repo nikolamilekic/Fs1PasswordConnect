@@ -33,7 +33,7 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
         >>= fun vaultInfo -> client.GetVaultItems vaultInfo.Id
         |> ResultT.run
 
-    static member private InjectPattern = "{{ op://(.+)/(.+)/(.+) }}"
+    static member private InjectPattern = "{{ op://([^/]+)/([^/]+)/([^/]+) }}"
 
     /// Returns true if the given string is a valid template for injecting
     static member IsTemplate template =
