@@ -1,3 +1,7 @@
+## New in 1.1 (Not released yet)
+* Switch to Fleece 0.10
+* Add `InjectAndReturnReplacements` and `IsTemplate` methods to `ConnectClientFacade`
+
 ## New in 1.0 (Released 2022/02/20)
 * 1.0 release
 
