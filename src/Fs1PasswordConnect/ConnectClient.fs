@@ -156,8 +156,12 @@ let internal cache inner = {
     GetFile = inner.GetFile
 }
 
-let fromSettings = operationsFromSettings >> ConnectClientFacade
-let fromSettingsCached = operationsFromSettings >> cache >> ConnectClientFacade
+let fromSettings = operationsFromSettings >> cache >> ConnectClientFacade
+
+[<Obsolete("Both fromSettings and fromSettingsCached are cached since v1.1. Use fromSettings instead.")>]
+let fromSettingsCached = fromSettings
+
+let fromSettingsWithoutCache = operationsFromSettings >> ConnectClientFacade
 
 /// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
 /// environment variables Fails if either is not set.
@@ -170,10 +174,14 @@ let internal operationsFromEnvironmentVariables () =
 
 /// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
 /// environment variables Fails if either is not set.
-let fromEnvironmentVariables = operationsFromEnvironmentVariables >> Result.map ConnectClientFacade
+let fromEnvironmentVariables =
+    operationsFromEnvironmentVariables
+    >> Result.map (cache >> ConnectClientFacade)
 
 /// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
 /// environment variables Fails if either is not set.
-let fromEnvironmentVariablesCached =
-    operationsFromEnvironmentVariables
-    >> Result.map (cache >> ConnectClientFacade)
+[<Obsolete("Both fromEnvironmentVariables and fromEnvironmentVariablesCached are cached since v1.1. Use fromEnvironmentVariables instead.")>]
+let fromEnvironmentVariablesCached = fromEnvironmentVariables
+
+let fromEnvironmentVariablesWithoutCache =
+    operationsFromEnvironmentVariables >> Result.map ConnectClientFacade
