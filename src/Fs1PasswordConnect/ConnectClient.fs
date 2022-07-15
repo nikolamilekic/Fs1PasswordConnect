@@ -163,23 +163,31 @@ let fromSettingsCached = fromSettings
 
 let fromSettingsWithoutCache = operationsFromSettings >> ConnectClientFacade
 
-/// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
-/// environment variables Fails if either is not set.
+/// Attempts to make a client instance from CONNECT_HOST and CONNECT_TOKEN
+/// environment variables (OP_CONNECT_HOST and OP_CONNECT_TOKEN can be used as well).
+/// Fails if either is not set.
 let internal operationsFromEnvironmentVariables () =
-    let host = Environment.GetEnvironmentVariable("OP_CONNECT_HOST")
-    let token = Environment.GetEnvironmentVariable("OP_CONNECT_TOKEN")
+    let getEnvironment x =
+        Seq.map Environment.GetEnvironmentVariable x
+        |> Seq.tryFind (fun x -> x <> null)
+        |> Option.defaultValue null
+
+    let host = getEnvironment [ "CONNECT_HOST"; "OP_CONNECT_HOST" ]
+    let token = getEnvironment [ "CONNECT_TOKEN"; "OP_CONNECT_TOKEN" ]
     if host <> null && token <> null
     then Ok <| operationsFromSettings { Host = ConnectHost host; Token = ConnectToken token }
     else Error ()
 
-/// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
-/// environment variables Fails if either is not set.
+/// Attempts to make a client instance from CONNECT_HOST and CONNECT_TOKEN
+/// environment variables (OP_CONNECT_HOST and OP_CONNECT_TOKEN can be used as well).
+/// Fails if either is not set.
 let fromEnvironmentVariables =
     operationsFromEnvironmentVariables
     >> Result.map (cache >> ConnectClientFacade)
 
-/// Attempts to make a client instance from OP_CONNECT_HOST and OP_CONNECT_TOKEN
-/// environment variables Fails if either is not set.
+/// Attempts to make a client instance from CONNECT_HOST and CONNECT_TOKEN
+/// environment variables (OP_CONNECT_HOST and OP_CONNECT_TOKEN can be used as well).
+/// Fails if either is not set.
 [<Obsolete("Both fromEnvironmentVariables and fromEnvironmentVariablesCached are cached since v1.1. Use fromEnvironmentVariables instead.")>]
 let fromEnvironmentVariablesCached = fromEnvironmentVariables
 

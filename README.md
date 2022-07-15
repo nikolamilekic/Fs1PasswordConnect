@@ -13,7 +13,7 @@ let settings : ConnectClientSettings = {
 let client : ConnectClientFacade = ConnectClient.fromSettings settings
 ```
 
-The host and token can also be saved retrieved from the OP_CONNECT_HOST and OP_CONNECT_TOKEN environment variables. `fromEnvironmentVariables` is used in this case.
+The host and token can also be saved retrieved from the CONNECT_HOST and CONNECT_TOKEN environment variables (OP_CONNECT_HOST and OP_CONNECT_TOKEN can be used as well). `fromEnvironmentVariables` is used in this case.
 
 ```f#
 open Fs1PasswordConnect
