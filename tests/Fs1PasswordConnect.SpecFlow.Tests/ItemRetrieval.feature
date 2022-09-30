@@ -18,11 +18,8 @@ Background:
             "lastEditedBy": "last edited id",
             "sections": [
                 {
-                    "id": "section id"
-                },
-                {
-                    "id": "linked items",
-                    "label": "Related Items"
+                    "id": "ugd62kx3xvpsrrhmwa7c64x5te",
+                    "label": "Configuration"
                 }
             ],
             "fields": [
@@ -32,6 +29,17 @@ Background:
                     "purpose": "purpose",
                     "label": "label",
                     "value": "value"
+                },
+                {
+                    "id": "field id 2",
+                    "type": "STRING",
+                    "purpose": "purpose",
+                    "label": "label1",
+                    "value": "value1",
+                    "section": {
+                        "id": "ugd62kx3xvpsrrhmwa7c64x5te",
+                        "label": "Configuration"
+                    }
                 }
             ],
             "urls": [
@@ -189,6 +197,7 @@ Scenario: Items are properly deserialized
     And the item's id should be 'wepiqdxdzncjtnvmv5fegud4qy'
     And the item's version should be '3'
     And the item should contain field with id 'field id', label 'label' and value 'value'
+    And the item should contain field with id 'field id 2', label 'label1', value 'value1', section 'Configuration' and section ID 'ugd62kx3xvpsrrhmwa7c64x5te'
     And the item should contain file with id 'fooaktb2fvbvdkarwm2crklmei', name 'profile.png', size '94941' and path '/v1/vaults/hfnjvi6aymbsnfc2xeeoheizda/items/wepiqdxdzncjtnvmv5fegud4qy/files/fooaktb2fvbvdkarwm2crklmei/content'
     And the item should contain url 'https://www.google.com'
 

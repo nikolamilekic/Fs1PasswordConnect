@@ -48,13 +48,16 @@ let item : Async<Result<Item, ConnectError>> = client.GetItem (VaultTitle "title
 
 ## Injecting Item Fields Into a Template
 
-Injecting item fields into a template is supported using the `Inject` function. The function will replace all occurrences of `{{ op://<VaultIdOrTitle/<ItemIdOrTitle>/<FieldIdLabelFileIdOrFileName> }}` with the value of the field (or file contents if the field is a file).
+Injecting item fields into a template is supported using the `Inject` function. The function will replace all occurrences of `op://<VaultIdOrTitle/<ItemIdOrTitle>/[SectionIdOrLabel]/<FieldIdLabelFileIdOrFileName>` with the value of the field (or file contents if the field is a file).
+
+Inject command works with the same kind of replacement string as the 1Password CLI.
+Same requirements apply. If the replacement string contains spaces it must be surrounded by quotes ("). The replacement string can contain alphanumeric characters and the underscore and the hyphen (_, -).
 
 ```f#
 open Fs1PasswordConnect
 
 let client : ConnectClientFacade = // ...
-let template = "{{ op://My Vault/My Item/password }}"
+let template = "op://MyVault/MyItem/password"
 let myPassword : Async<Result<string, ConnectError>> = client.Inject template
 ```
 

@@ -6,6 +6,25 @@ open FSharpPlus
 open Fs1PasswordConnect
 open Milekic.YoLo
 
+module ConnectClientFacade =
+    let (|InjectPattern|_|) s =
+        match s with
+        | Regex "\"op://([a-zA-Z0-9\-_\s]+)/([a-zA-Z0-9\-_\s]+)/([a-zA-Z0-9\-_\s]+)/([a-zA-Z0-9\-_\s]+)\"" [ vault; item; section; fieldOrFile ] ->
+            Some (InjectPattern (vault, item, Some section, fieldOrFile, true))
+        | Regex "\"op://([a-zA-Z0-9\-_\s]+)/([a-zA-Z0-9\-_\s]+)/([a-zA-Z0-9\-_\s]+)\"" [ vault; item; fieldOrFile ] ->
+            Some (InjectPattern (vault, item, None, fieldOrFile, true))
+        | Regex "\"op://([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)\"" [ vault; item; section; fieldOrFile ] ->
+            Some (InjectPattern (vault, item, Some section, fieldOrFile, true))
+        | Regex "\"op://([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)\"" [ vault; item; fieldOrFile ] ->
+            Some (InjectPattern (vault, item, None, fieldOrFile, true))
+        | Regex "op://([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)" [ vault; item; section; fieldOrFile ] ->
+            Some (InjectPattern (vault, item, Some section, fieldOrFile, false))
+        | Regex "op://([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)/([a-zA-Z0-9\-_]+)" [ vault; item; fieldOrFile ] ->
+            Some (InjectPattern (vault, item, None, fieldOrFile, false))
+        | _ -> None
+
+open ConnectClientFacade
+
 type ConnectClientFacade internal (client : ConnectClientOperations) =
     member _.GetVaults () = client.GetVaults () |> ResultT.run
     member _.GetVaultInfo vaultId = client.GetVaultInfoById vaultId |> ResultT.run
@@ -33,33 +52,43 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
         >>= fun vaultInfo -> client.GetVaultItems vaultInfo.Id
         |> ResultT.run
 
-    static member private InjectPattern = "{{ op://([^/]+)/([^/]+)/([^/]+) }}"
-
-    /// Returns true if the given string is a valid template for injecting
-    static member IsTemplate template =
-        match template with
-        | Regex ConnectClientFacade.InjectPattern [ _; _; _ ] -> true
-        | _ -> false
-
-    /// Replaces all tokens of type {{ op://<VaultIdOrTitle/<ItemIdOrTitle>/<FieldIdLabelFileIdOrFileName> }} from template
-    /// with the values of the corresponding fields
-    /// and returns the resulting string together with a list of replacements that were made.
-    member this.InjectAndReturnReplacements template =
-        let rec inner replacements (template : string) : Async<Result<string * (string * string) list, ConnectError>> = async {
+    /// Replaces all tokens of type op://<VaultIdOrTitle/<ItemIdOrTitle>/[SectionIdOrLabel]/<FieldIdLabelFileIdOrFileName> from template
+    /// with the values of the corresponding fields.
+    member this.Inject template : Async<Result<string, ConnectError>> =
+        let rec inner (template : string) : Async<Result<string, ConnectError>> = async {
             match template with
-            | Regex ConnectClientFacade.InjectPattern [ vault; item; fieldOrFile ] ->
-                let replacement = "{{ " + $"op://{vault}/{item}/{fieldOrFile}" + " }}"
+            | InjectPattern (vault, item, section, fieldOrFile, quoted) ->
+                let replacement =
+                    match section, quoted with
+                    | Some s, true -> $"\"op://{vault}/{item}/{s}/{fieldOrFile}\""
+                    | Some s, false -> $"op://{vault}/{item}/{s}/{fieldOrFile}"
+                    | None, true -> $"\"op://{vault}/{item}/{fieldOrFile}\""
+                    | None, false -> $"op://{vault}/{item}/{fieldOrFile}"
 
                 let getField item = async {
                     let field =
-                        item.Fields
-                        |> List.tryFind (fun { Id = FieldId id; Label = FieldLabel label } ->
-                            id = fieldOrFile || label = fieldOrFile)
+                        match section with
+                        | Some s ->
+                            item.Fields
+                            |> List.tryFind (fun { Id = FieldId id; Label = FieldLabel label; Section = sectionInfo } ->
+                                match sectionInfo with
+                                | Some { Label = SectionLabel sectionLabel; Id = SectionId sectionId } ->
+                                    (sectionLabel = s || sectionId = s) &&
+                                    (id = fieldOrFile || label = fieldOrFile)
+                                | None -> false)
+                        | None ->
+                            item.Fields
+                            |> List.tryFind (fun { Id = FieldId id; Label = FieldLabel label; Section = sectionInfo } ->
+                                match sectionInfo with
+                                | None -> (id = fieldOrFile || label = fieldOrFile)
+                                | Some _ -> false)
+                            |> Option.orElseWith (fun () ->
+                                item.Fields
+                                |> List.tryFind (fun { Id = FieldId id; Label = FieldLabel label } ->
+                                    id = fieldOrFile || label = fieldOrFile))
                     match field with
                     | Some { Value = FieldValue v } ->
-                        return!
-                            template.Replace(replacement, v)
-                            |> inner ((replacement, v)::replacements)
+                        return! template.Replace(replacement, v) |> inner
                     | None -> return Error FieldNotFound
                 }
 
@@ -74,9 +103,7 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
                         | Ok stream ->
                             use reader = new StreamReader(stream)
                             let! v = reader.ReadToEndAsync() |> Async.AwaitTask
-                            return!
-                                template.Replace(replacement, v)
-                                |> inner ((replacement, v)::replacements)
+                            return! template.Replace(replacement, v) |> inner
                         | Error e -> return Error e
                     | None -> return Error FieldNotFound
                 }
@@ -104,17 +131,10 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
                     | Ok itemInfo -> return! getFieldOrFile (VaultId vault) itemInfo.Id
                     | Error ItemNotFound -> return! getFieldOrFile (VaultId vault) (ItemId item) //Maybe item is id
                     | Error e -> return Error e
-            | _ -> return Ok (template, replacements |> List.rev)
+            | _ -> return Ok template
         }
 
-        inner [] template
-
-    /// Replaces all tokens of type {{ op://<VaultIdOrTitle/<ItemIdOrTitle>/<FieldIdLabelFileIdOrFileName> }} from template
-    /// with the values of the corresponding fields.
-    member this.Inject template : Async<Result<string, ConnectError>> = async {
-        let! result = this.InjectAndReturnReplacements template
-        return result |>> fst
-    }
+        inner template
 
 and internal ConnectClientOperations = {
     GetVaults : unit -> ConnectClientMonad<VaultInfo list>

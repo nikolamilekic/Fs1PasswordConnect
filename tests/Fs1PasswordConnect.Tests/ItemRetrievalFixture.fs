@@ -104,7 +104,22 @@ type ItemRetrievalFixture() =
     let [<Then>] ``the item should contain field with id '(.*)', label '(.*)' and value '(.*)'`` id l v =
         test <@
             (itemResult |> Result.get).Fields
-            |> List.tryFind (fun item -> item.Id = FieldId id && item.Label = FieldLabel l && item.Value = FieldValue v)
+            |> List.tryFind (fun item ->
+                item.Id = FieldId id &&
+                item.Label = FieldLabel l &&
+                item.Value = FieldValue v &&
+                item.Section = None)
+            |> Option.isSome
+        @>
+
+    let [<Then>] ``the item should contain field with id '(.*)', label '(.*)', value '(.*)', section '(.*)' and section ID '(.*)'`` id l v s sId=
+        test <@
+            (itemResult |> Result.get).Fields
+            |> List.tryFind (fun item ->
+                item.Id = FieldId id &&
+                item.Label = FieldLabel l &&
+                item.Value = FieldValue v &&
+                item.Section = Some { Id = SectionId sId; Label = SectionLabel s })
             |> Option.isSome
         @>
     let [<Then>] ``the item should contain url '(.*)'`` u =

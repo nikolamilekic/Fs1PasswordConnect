@@ -71,11 +71,19 @@ type InjectionFixture() =
     let [<Given>] ``item with id "(.*)" and title "(.*)" in vault "(.*)" with fields`` id title vault (table : Table) =
         let fields =
             table.Rows
-            |> Seq.map (fun (row : TableRow) -> {
-                Id = FieldId row[0]
-                Label = FieldLabel row[1]
-                Value = FieldValue row[2]
-            })
+            |> Seq.map (fun (row : TableRow) ->
+                let section =
+                    let sectionId = row[3]
+                    let sectionLabel = row[4]
+                    if sectionId <> "" && sectionLabel <> "" then
+                        Some { Id = SectionId sectionId; Label = SectionLabel sectionLabel }
+                    else None
+                {
+                    Id = FieldId row[0]
+                    Label = FieldLabel row[1]
+                    Value = FieldValue row[2]
+                    Section = section
+                })
             |> Seq.toList
         let item = {
             ItemInfo = {
@@ -96,17 +104,3 @@ type InjectionFixture() =
             return result |>> box
         }
     let [<Then>] ``the result should be`` expected = result =! (Ok expected)
-    let [<When>] ``the user runs inject with replacements on the following text`` text =
-        result <- Async.RunSynchronously <| async {
-            let! result = connectClient.InjectAndReturnReplacements text
-            return result |>> box
-        }
-    let [<Then>] ``the returned replacements should be should be`` (table : Table) =
-        let expected =
-            table.Rows
-            |> Seq.map (fun (row : TableRow) -> (row[0], row[1]))
-            |> Seq.toList
-        let actual = result |>> fun x ->
-            let (_ : string, r : (string * string) list) = unbox x
-            r
-        actual =! Ok expected
