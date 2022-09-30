@@ -2,6 +2,7 @@
 
 Background:
     Given the client is configured to use host 'mock_host' and token 'jwt_token'
+    And the client is configured to use additional header 'header_key' with value 'header_value'
     And item with ID 'wepiqdxdzncjtnvmv5fegud4qy' in vault with ID 'hfnjvi6aymbsnfc2xeeoheizda'
         """
         {

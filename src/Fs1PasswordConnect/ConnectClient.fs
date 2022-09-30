@@ -23,7 +23,7 @@ let internal operationsFromRequestProcessor requestProcessor settings =
     let baseRequest =
         {
             Url = $"{host.TrimEnd('/')}/v1/"
-            Headers = [ "Authorization", $"Bearer {token}" ]
+            Headers = ("Authorization", $"Bearer {token}")::settings.AdditionalHeaders
             RequestStream = false
         }
 
@@ -177,7 +177,7 @@ let internal operationsFromEnvironmentVariables () =
     let host = getEnvironment [ "CONNECT_HOST"; "OP_CONNECT_HOST" ]
     let token = getEnvironment [ "CONNECT_TOKEN"; "OP_CONNECT_TOKEN" ]
     if host <> null && token <> null
-    then Ok <| operationsFromSettings { Host = ConnectHost host; Token = ConnectToken token }
+    then Ok <| operationsFromSettings { Host = ConnectHost host; Token = ConnectToken token; AdditionalHeaders = [] }
     else Error ()
 
 /// Attempts to make a client instance from CONNECT_HOST and CONNECT_TOKEN

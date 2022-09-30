@@ -18,10 +18,11 @@ type ItemRetrievalFixture() =
     let mutable responses = Map.empty
     let mutable token = ""
     let mutable host = ""
+    let mutable additionalHeaders = []
     let requestProcessor { Request.Url = url; Headers = headers } = async {
         receivedCalls <- url::receivedCalls
 
-        let expectedHeaders = [ "Authorization", $"Bearer {token}" ]
+        let expectedHeaders = ("Authorization", $"Bearer {token}")::additionalHeaders
         headers =! expectedHeaders
 
         return
@@ -33,7 +34,7 @@ type ItemRetrievalFixture() =
         ConnectClient.operationsFromRequestProcessor requestProcessor
         >> ConnectClientFacade
     let mutable client =
-        fromSettings { Host = ConnectHost ""; Token = ConnectToken "" }
+        fromSettings { Host = ConnectHost ""; Token = ConnectToken ""; AdditionalHeaders = [] }
 
     let mutable itemResult : Result<Item, _> = Error <| CriticalFailure (Exception("Never called"))
     let mutable itemInfoListResult : Result<ItemInfo list, _> = Error <| CriticalFailure (Exception("Never called"))
@@ -44,7 +45,7 @@ type ItemRetrievalFixture() =
     let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (h : string) (t : string) =
         host <- h.TrimEnd('/')
         token <- t
-        client <- fromSettings { Host = ConnectHost h; Token = ConnectToken t }
+        client <- fromSettings { Host = ConnectHost h; Token = ConnectToken t; AdditionalHeaders = additionalHeaders }
     let [<Given>] ``the server returns the following body for call to url '(.*)'`` (url : string) (body : string) =
         responses <- Map.add url body responses
     let [<Given>] ``item with ID '(.*)' in vault with ID '(.*)'`` (itemId : string) (vaultId : string) body =
@@ -154,3 +155,6 @@ type ItemRetrievalFixture() =
         @>
     let [<When>] ``the user requests file with content path '(.*)'`` path =
         fileContentResult <- client.GetFile (FileContentPath path) |> Async.RunSynchronously
+    let [<Given>] ``the client is configured to use additional header '(.*)' with value '(.*)'`` key value =
+        additionalHeaders <- (key, value)::additionalHeaders
+        client <- fromSettings { Host = ConnectHost host; Token = ConnectToken token; AdditionalHeaders = additionalHeaders }
