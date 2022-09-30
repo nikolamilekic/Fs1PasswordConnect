@@ -13,19 +13,26 @@ open Milekic.YoLo
 let internal lift x : ConnectClientMonad<'a> = ResultT.lift x
 let internal hoist x : ConnectClientMonad<'a> = ResultT.hoist x
 
-let internal fromRequestProcessor requestProcessor settings =
-    let { Host = (ConnectHost host); Token = (ConnectToken token) } = settings
-    let requestWithBuilder requestBuilder = monad {
-        try return! requestProcessor requestBuilder |> lift
+let internal operationsFromRequestProcessor requestProcessor settings =
+    let requestProcessor request = monad {
+        try return! requestProcessor request |> lift
         with exn -> return! Error (CriticalFailure exn) |> hoist
     }
-    let request (endpoint : string) =
-        let requestBuilder request = {
-            request with
-                Url = $"{host.TrimEnd('/')}/v1/{endpoint.TrimStart('/')}"
-                Headers = [ "Authorization", $"Bearer {token}" ]
+
+    let { Host = (ConnectHost host); Token = (ConnectToken token) } = settings
+    let baseRequest =
+        {
+            Url = $"{host.TrimEnd('/')}/v1/"
+            Headers = [ "Authorization", $"Bearer {token}" ]
+            RequestStream = false
         }
-        requestWithBuilder requestBuilder
+
+    let request (endpoint : string) =
+        {
+            baseRequest with
+                Url = baseRequest.Url + $"{endpoint.TrimStart('/')}"
+        }
+        |> requestProcessor
 
     let getVaults () =
         request "vaults" >>= function
@@ -84,13 +91,12 @@ let internal fromRequestProcessor requestProcessor settings =
         | { StatusCode = 404 } -> Error VaultNotFound |> hoist
         | { StatusCode = c } -> Error (UnexpectedStatusCode c) |> hoist
     let getFile (FileContentPath path) =
-        let requestBuilder request = {
-            request with
+        {
+            baseRequest with
                 Url = $"{host.TrimEnd('/')}/{path.TrimStart('/')}"
-                Headers = [ "Authorization", $"Bearer {token}" ]
                 RequestStream = true
         }
-        requestWithBuilder requestBuilder >>= function
+        |> requestProcessor >>= function
         | ({ StatusCode = 200; Stream = stream } : Response) ->
             result (stream |> Option.get)
         | { StatusCode = 401 } -> Error MissingToken |> hoist
@@ -109,12 +115,12 @@ let internal fromRequestProcessor requestProcessor settings =
     }
 
 let private operationsFromSettings settings =
-    let requestProcessor requestBuilder = monad {
-        let {
+    let requestProcessor
+        {
             Url = url
             Headers = headers
             RequestStream = requestStream
-        } = requestBuilder Request.Zero
+        } = monad {
 
         if not requestStream then
             let! response = Http.AsyncRequest(url, headers = headers)
@@ -132,7 +138,7 @@ let private operationsFromSettings settings =
             }
     }
 
-    fromRequestProcessor requestProcessor settings
+    operationsFromRequestProcessor requestProcessor settings
 
 let internal cacheConnectFunction (f : 'a -> ConnectClientMonad<'b>) =
     let cache = ref Map.empty

@@ -18,9 +18,7 @@ type ItemRetrievalFixture() =
     let mutable responses = Map.empty
     let mutable token = ""
     let mutable host = ""
-    let requestProcessor builder = async {
-        let { Request.Url = url; Headers = headers } = builder Request.Zero
-
+    let requestProcessor { Request.Url = url; Headers = headers } = async {
         receivedCalls <- url::receivedCalls
 
         let expectedHeaders = [ "Authorization", $"Bearer {token}" ]
@@ -32,7 +30,7 @@ type ItemRetrievalFixture() =
             | None -> failwith $"No response configured for url: {url}"
     }
     let fromSettings : _ -> ConnectClientFacade =
-        ConnectClient.fromRequestProcessor requestProcessor
+        ConnectClient.operationsFromRequestProcessor requestProcessor
         >> ConnectClientFacade
     let mutable client =
         fromSettings { Host = ConnectHost ""; Token = ConnectToken "" }
@@ -68,7 +66,7 @@ type ItemRetrievalFixture() =
     let [<Then>] ``the following url should be called '(.*)'`` (url : string) =
         test <@ List.contains url receivedCalls @>
     let [<Then>] ``the client should return item with ID '(.*)'`` (itemId : string) =
-        match ofJsonText items.[itemId] with
+        match ofJsonText items[itemId] with
         | Ok (expected : Item) -> itemResult =! Ok expected
         | Error x -> failwith $"The following error occured while trying to parse the expected response: {x}"
     let [<When>] ``the user requests all items in vault with ID '(.*)'`` (vaultId : string) =
