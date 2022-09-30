@@ -48,3 +48,10 @@ Scenario: Inject in 13 different flavours
     "value9
     value9"
     """
+
+Scenario: Inject into environment variables
+    Given environment variable 'VAR1' is set to '"op://Vault 1/Item 1/label1"'
+    And environment variable 'VAR2' is set to 'op://v1/i1/f8'
+    When the user runs inject into environment variables
+    Then environment variable 'VAR1' should be 'value1'
+    And environment variable 'VAR2' should be 'value8'

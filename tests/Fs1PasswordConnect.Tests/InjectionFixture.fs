@@ -106,3 +106,11 @@ type InjectionFixture() =
             return result |>> box
         }
     let [<Then>] ``the result should be`` expected = result =! (Ok expected)
+    let [<Given>] ``environment variable '(.*)' is set to '(.*)'`` name value =
+        Environment.SetEnvironmentVariable(name, value)
+    let [<When>] ``the user runs inject into environment variables`` () =
+        connectClient.InjectIntoEnvironmentVariables ()
+        |> Async.RunSynchronously
+        |> ignore
+    let [<Then>] ``environment variable '(.*)' should be '(.*)'`` name value =
+        Environment.GetEnvironmentVariable(name) =! value

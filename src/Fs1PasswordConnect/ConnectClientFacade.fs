@@ -1,6 +1,8 @@
 ﻿namespace Fs1PasswordConnect
 
+open System
 open System.IO
+open System.Collections
 open FSharpPlus.Data
 open FSharpPlus
 open Fs1PasswordConnect
@@ -135,6 +137,22 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
         }
 
         inner template
+
+    member this.InjectIntoEnvironmentVariables () : Async<(string * Result<string, ConnectError>) list> =
+        Environment.GetEnvironmentVariables ()
+        |> Seq.cast<DictionaryEntry>
+        |> Seq.map (fun kvp -> async {
+            let value = kvp.Value.ToString()
+            match! this.Inject value with
+            | Ok i when i = value -> return None
+            | Ok i as x ->
+                let var = kvp.Key.ToString()
+                Environment.SetEnvironmentVariable(var, i)
+                return Some (var, x)
+            | x -> return Some (kvp.Key.ToString(), x)
+        })
+        |> Seq.sequence
+        |> Async.map (Seq.choose id >> Seq.toList)
 
 and internal ConnectClientOperations = {
     GetVaults : unit -> ConnectClientMonad<VaultInfo list>
