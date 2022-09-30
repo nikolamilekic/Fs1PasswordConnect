@@ -4,6 +4,7 @@ source https://nuget.nikolamilekic.com/index.json
 
 nuget FSharp.Core
 
+nuget FSharpPlus
 nuget Fake.Api.GitHub
 nuget Octokit
 nuget Fake.BuildServer.GitHubActions
@@ -17,14 +18,56 @@ nuget Fake.IO.Zip
 nuget Fake.Tools.Git
 
 nuget Milekic.YoLo
-nuget Fs1PasswordConnect //"
+nuget Fs1PasswordConnect prerelease //"
 #load ".fake/build.fsx/intellisense.fsx"
 
 //nuget Fake.Core.Target
+open Fake.Core
 open Fake.Core.TargetOperators
 
 let (==>) xs y = xs |> Seq.iter (fun x -> x ==> y |> ignore)
 let (?=>) xs y = xs |> Seq.iter (fun x -> x ?=> y |> ignore)
+
+open Fs1PasswordConnect
+open FSharpPlus
+
+monad.strict {
+    let loadSecret x =
+        match Environment.environVarOrNone x with
+        | Some x -> Some x
+        | None -> printfn $"Environment variable {x} not found."; None
+
+    let! host = loadSecret "OP_CONNECT_HOST"
+    let! token = loadSecret "OP_CONNECT_TOKEN"
+    let additionalHeaders  =
+        monad.strict {
+            let! cfClient = loadSecret "CF_ACCESS_CLIENT"
+            let! cfSecret = loadSecret "CF_ACCESS_CLIENT_SECRET"
+            return [
+                ("CF-Access-Client-Id", cfClient)
+                ("CF-Access-Client-Secret", cfSecret)
+            ]
+        }
+        |> Option.defaultValue []
+
+    let client =
+        {
+            Host = ConnectHost host
+            Token = ConnectToken token
+            AdditionalHeaders = additionalHeaders
+        }
+        |> ConnectClient.fromSettings
+
+    let updated =
+        client.InjectIntoEnvironmentVariables()
+        |> Async.RunSynchronously
+        |> List.map fst
+
+    for u in updated do
+        printfn $"Updated environment variable {u}"
+
+    return ()
+}
 
 module FinalVersion =
     //nuget Fake.IO.FileSystem
@@ -68,10 +111,6 @@ module ReleaseNotesParsing =
         lazy
         (ReleaseNotes.load releaseNotesFile).Notes
         |> String.concat Environment.NewLine
-
-// module ConnectClient =
-//     open Fs1PasswordConnect
-//     let client = ConnectClient.fromEnvironmentVariablesCached ()
 
 module Clean =
     //nuget Fake.IO.FileSystem
