@@ -1,6 +1,7 @@
 ﻿namespace Fs1PasswordConnect
 
 open System
+open NodaTime
 open Swensen.Unquote
 open FSharpPlus
 open FSharpPlus.Data
@@ -59,12 +60,13 @@ type InjectionFixture() =
     let mutable result : Result<obj, ConnectError> = Ok ""
 
     let [<Given>] ``vault with id "(.*)" and title "(.*)"`` id title =
+        let now = SystemClock.Instance.GetCurrentInstant()
         let vault = {
             Id = VaultId id
             Title = VaultTitle title
             Version = VaultVersion 0
-            CreatedAt = CreatedAt DateTimeOffset.Now
-            UpdatedAt = UpdatedAt DateTimeOffset.Now
+            CreatedAt = CreatedAt now
+            UpdatedAt = UpdatedAt now
             ItemCount = ItemCount 0
         }
         vaults <- vault::vaults

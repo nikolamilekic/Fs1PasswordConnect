@@ -11,6 +11,7 @@ nuget Milekic.YoLo storage:packages
 nuget FSharpPlus
 nuget Fleece.SystemTextJson
 nuget FSharp.Data
+nuget NodaTime
 
 //Testing
 nuget Unquote
