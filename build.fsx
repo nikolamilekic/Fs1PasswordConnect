@@ -32,10 +32,12 @@ module Connect =
     //nuget Milekic.YoLo
     //nuget FSharpPlus
     //nuget Fs1PasswordConnect
+    //nuget Fake.BuildServer.GitHubActions
 
     open Fs1PasswordConnect
     open FSharpPlus
     open Milekic.YoLo
+    open Fake.BuildServer
 
     monad.strict {
         let! client =
@@ -44,9 +46,19 @@ module Connect =
 
         printfn "Injecting secrets into environment variables using Connect"
 
+        let ghActions = GitHubActions.detect ()
         for u, r in client.InjectIntoEnvironmentVariables() |> Async.RunSynchronously do
             match r with
-            | Ok _ -> printfn $"Updated environment variable {u}"
+            | Ok (s : string) ->
+                printfn $"Updated environment variable {u}"
+                if ghActions then
+                    //See https://github.com/actions/toolkit/blob/4fbc5c941a57249b19562015edbd72add14be93d/packages/core/src/command.ts#L23
+                    let escaped =
+                        s
+                            .Replace("%", "%25")
+                            .Replace("\r", "%0D")
+                            .Replace("\n", "%0A")
+                    printfn $"::add-mask::{escaped}"
             | Error e -> printfn $"Failed to update environment variable {u}: {e}"
         printfn "Secret injection done"
 
