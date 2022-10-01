@@ -28,46 +28,31 @@ open Fake.Core.TargetOperators
 let (==>) xs y = xs |> Seq.iter (fun x -> x ==> y |> ignore)
 let (?=>) xs y = xs |> Seq.iter (fun x -> x ?=> y |> ignore)
 
-open Fs1PasswordConnect
-open FSharpPlus
+module Connect =
+    //nuget Milekic.YoLo
+    //nuget FSharpPlus
+    //nuget Fs1PasswordConnect
 
-monad.strict {
-    let loadSecret x =
-        match Environment.environVarOrNone x with
-        | Some x -> Some x
-        | None -> printfn $"Environment variable {x} not found."; None
+    open Fs1PasswordConnect
+    open FSharpPlus
+    open Milekic.YoLo
 
-    let! host = loadSecret "OP_CONNECT_HOST"
-    let! token = loadSecret "OP_CONNECT_TOKEN"
-    let additionalHeaders  =
-        monad.strict {
-            let! cfClient = loadSecret "CF_ACCESS_CLIENT"
-            let! cfSecret = loadSecret "CF_ACCESS_CLIENT_SECRET"
-            return [
-                ("CF-Access-Client-Id", cfClient)
-                ("CF-Access-Client-Secret", cfSecret)
-            ]
-        }
-        |> Option.defaultValue []
+    monad.strict {
+        let! client =
+            ConnectClient.fromEnvironmentVariables()
+            |> Result.mapError (fun _ -> printfn "Connect client not configured")
 
-    let client =
-        {
-            Host = ConnectHost host
-            Token = ConnectToken token
-            AdditionalHeaders = additionalHeaders
-        }
-        |> ConnectClient.fromSettings
+        printfn "Injecting secrets into environment variables using Connect"
 
-    let updated =
-        client.InjectIntoEnvironmentVariables()
-        |> Async.RunSynchronously
-        |> List.map fst
+        for u, r in client.InjectIntoEnvironmentVariables() |> Async.RunSynchronously do
+            match r with
+            | Ok _ -> printfn $"Updated environment variable {u}"
+            | Error e -> printfn $"Failed to update environment variable {u}: {e}"
+        printfn "Secret injection done"
 
-    for u in updated do
-        printfn $"Updated environment variable {u}"
-
-    return ()
-}
+        return ()
+    }
+    |> ignore
 
 module FinalVersion =
     //nuget Fake.IO.FileSystem
