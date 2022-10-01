@@ -9,11 +9,12 @@ open Fs1PasswordConnect
 let settings : ConnectClientSettings = {
     Host = ConnectHost "https://connect.mydomain.com"
     Token = ConnectToken "connecttoken"
+    AdditionalHeaders = []
 }
 let client : ConnectClientFacade = ConnectClient.fromSettings settings
 ```
 
-The host and token can also be saved retrieved from the CONNECT_HOST and CONNECT_TOKEN environment variables (OP_CONNECT_HOST and OP_CONNECT_TOKEN can be used as well). `fromEnvironmentVariables` is used in this case.
+The host and token can also be saved retrieved from the CONNECT_HOST, CONNECT_TOKEN, and CONNECT_ADDITIONAL_HEADERS environment variables (OP_CONNECT_HOST, OP_CONNECT_TOKEN and OP_CONNECT_ADDITIONAL_HEADERS can be used as well). `fromEnvironmentVariables` is used in this case.
 
 ```f#
 open Fs1PasswordConnect
@@ -31,7 +32,7 @@ let deserialized : ParseResult<ConnectClientSettings> = fromJson json
 ```
 
 ### Cached Clients
-Both the `fromSettings` `fromEnvironmentVariables` have cached variants (`fromSettingsCached` and `fromEnvironmentVariablesCached`) that cache all calls and will return cached results for same calls.
+Both the `fromSettings` `fromEnvironmentVariables` are cached by default. Variants without caching exist as well (`fromEnvironmentVariablesWithoutCache` and `fromSettingsWithoutCache`).
 
 ## Getting Items
 Items can be retrieved using a combination of item title or id and vault title or id.
@@ -59,6 +60,35 @@ open Fs1PasswordConnect
 let client : ConnectClientFacade = // ...
 let template = "op://MyVault/MyItem/password"
 let myPassword : Async<Result<string, ConnectError>> = client.Inject template
+```
+
+## Injecting Secrets Into Environment Variables
+```f#
+monad.strict {
+    let! client =
+        ConnectClient.fromEnvironmentVariables()
+        |> Result.mapError (fun _ -> printfn "Connect client not configured")
+
+    printfn "Injecting secrets into environment variables using Connect"
+
+    let ghActions = GitHubActions.detect ()
+    for u, r in client.InjectIntoEnvironmentVariables() |> Async.RunSynchronously do
+        match r with
+        | Ok (s : string) ->
+            printfn $"Updated environment variable {u}"
+            if ghActions then
+                //See https://github.com/actions/toolkit/blob/4fbc5c941a57249b19562015edbd72add14be93d/packages/core/src/command.ts#L23
+                let escaped =
+                    s
+                        .Replace("%", "%25")
+                        .Replace("\r", "%0D")
+                        .Replace("\n", "%0A")
+                printfn $"::add-mask::{escaped}"
+        | Error e -> printfn $"Failed to update environment variable {u}: {e}"
+    printfn "Secret injection done"
+
+    return ()
+}
 ```
 
 ## Other Operations

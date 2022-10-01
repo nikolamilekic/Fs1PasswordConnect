@@ -22,7 +22,6 @@ nuget Fs1PasswordConnect prerelease //"
 #load ".fake/build.fsx/intellisense.fsx"
 
 //nuget Fake.Core.Target
-open Fake.Core
 open Fake.Core.TargetOperators
 
 let (==>) xs y = xs |> Seq.iter (fun x -> x ==> y |> ignore)
@@ -506,6 +505,7 @@ module UploadArtifactsToGitHub =
 module UploadPackageToNuget =
     //nuget Fake.DotNet.Paket
     //nuget Fake.BuildServer.GitHubActions
+
     open Fake.Core
     open Fake.DotNet
     open Fake.BuildServer
