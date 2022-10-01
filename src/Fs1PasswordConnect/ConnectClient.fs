@@ -168,17 +168,34 @@ let fromSettingsWithoutCache = operationsFromSettings >> ConnectClientFacade
 /// Attempts to make a client instance from CONNECT_HOST and CONNECT_TOKEN
 /// environment variables (OP_CONNECT_HOST and OP_CONNECT_TOKEN can be used as well).
 /// Fails if either is not set.
-let internal operationsFromEnvironmentVariables () =
+let internal operationsFromEnvironmentVariables () = monad.strict {
     let getEnvironment x =
         Seq.map Environment.GetEnvironmentVariable x
         |> Seq.tryFind (fun x -> x <> null)
-        |> Option.defaultValue null
+        |> Option.toResult
 
-    let host = getEnvironment [ "CONNECT_HOST"; "OP_CONNECT_HOST" ]
-    let token = getEnvironment [ "CONNECT_TOKEN"; "OP_CONNECT_TOKEN" ]
-    if host <> null && token <> null
-    then Ok <| operationsFromSettings { Host = ConnectHost host; Token = ConnectToken token; AdditionalHeaders = [] }
-    else Error ()
+    let! host = getEnvironment [ "CONNECT_HOST"; "OP_CONNECT_HOST" ]
+    let! token = getEnvironment [ "CONNECT_TOKEN"; "OP_CONNECT_TOKEN" ]
+    let additionalHeaders =
+        getEnvironment [ "CONNECT_ADDITIONAL_HEADERS"; "OP_CONNECT_ADDITIONAL_HEADERS" ]
+        |>> fun ah ->
+            let separators = [| Environment.NewLine; "\n" |]
+            let lines = ah.Split(separators, StringSplitOptions.TrimEntries)
+            [ for line in lines ->
+                let index = line.IndexOf('=')
+                if index < 0
+                then line, ""
+                else line.Substring(0, index), line.Substring(index + 1) ]
+        |> Result.defaultValue []
+
+    return
+        {
+            Host = ConnectHost host
+            Token = ConnectToken token
+            AdditionalHeaders = additionalHeaders
+        }
+        |> operationsFromSettings
+}
 
 /// Attempts to make a client instance from CONNECT_HOST and CONNECT_TOKEN
 /// environment variables (OP_CONNECT_HOST and OP_CONNECT_TOKEN can be used as well).
