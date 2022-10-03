@@ -170,7 +170,8 @@ let fromSettingsWithoutCache = operationsFromSettings >> ConnectClientFacade
 /// Fails if either is not set.
 let internal operationsFromEnvironmentVariables () = monad.strict {
     let getEnvironment x =
-        Seq.map Environment.GetEnvironmentVariable x
+        x
+        |> Seq.map Environment.GetEnvironmentVariable
         |> Seq.tryFind (fun x -> x <> null)
         |> Option.toResult
 
@@ -179,8 +180,7 @@ let internal operationsFromEnvironmentVariables () = monad.strict {
     let additionalHeaders =
         getEnvironment [ "CONNECT_ADDITIONAL_HEADERS"; "OP_CONNECT_ADDITIONAL_HEADERS" ]
         |>> fun ah ->
-            let separators = [| Environment.NewLine; "\n" |]
-            let lines = ah.Split(separators, StringSplitOptions.TrimEntries)
+            let lines = ah.Split(";", StringSplitOptions.TrimEntries)
             [ for line in lines ->
                 let index = line.IndexOf('=')
                 if index < 0
