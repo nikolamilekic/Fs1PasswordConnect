@@ -1,3 +1,6 @@
+## New in 2.1 (Released 2022/10/03)
+* Proxy can now be configured for Connect requests
+
 ## New in 2.0 (Released 2022/10/01)
 * Injection matching strings are now aligned with the official CLI. The same types of replacement strings are now used.
 * Switched to NodaTime for date/time types

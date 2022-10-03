@@ -9,6 +9,7 @@ type ConnectClientSettings =
         Host : ConnectHost
         Token : ConnectToken
         AdditionalHeaders : (string * string) list
+        Proxy : Proxy option
     } with
     static member get_Codec () =
         let headersCodec =
@@ -22,17 +23,24 @@ type ConnectClientSettings =
             decode <-> encode
             |> Codecs.array
 
-        (fun h t ah -> {
+        (fun h t ah p -> {
             Host = ConnectHost h
             Token = ConnectToken t
             AdditionalHeaders = List.ofArray ah
+            Proxy =
+                match p with
+                | Some ""
+                | None -> None
+                | Some x -> Some (Proxy x)
         })
         <!> jreq "Host" (fun { Host = (ConnectHost h) } -> Some h)
         <*> jreq "Token" (fun { Token = (ConnectToken t) } -> Some t)
         <*> joptWith headersCodec "AdditionalHeaders" (fun { AdditionalHeaders = ah } -> List.toArray ah)
+        <*> jopt "Proxy" (fun { Proxy = p } -> p |>> (fun (Proxy x) -> x))
         |> ofObjCodec
 and ConnectHost = ConnectHost of string
 and ConnectToken = ConnectToken of string
+and Proxy = Proxy of string
 
 type internal Request = {
     Url : string

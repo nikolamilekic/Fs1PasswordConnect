@@ -34,7 +34,7 @@ type ItemRetrievalFixture() =
         ConnectClient.operationsFromRequestProcessor requestProcessor
         >> ConnectClientFacade
     let mutable client =
-        fromSettings { Host = ConnectHost ""; Token = ConnectToken ""; AdditionalHeaders = [] }
+        fromSettings { Host = ConnectHost ""; Token = ConnectToken ""; AdditionalHeaders = []; Proxy = None }
 
     let mutable itemResult : Result<Item, _> = Error <| CriticalFailure (Exception("Never called"))
     let mutable itemInfoListResult : Result<ItemInfo list, _> = Error <| CriticalFailure (Exception("Never called"))
@@ -45,7 +45,7 @@ type ItemRetrievalFixture() =
     let [<Given>] ``the client is configured to use host '(.*)' and token '(.*)'`` (h : string) (t : string) =
         host <- h.TrimEnd('/')
         token <- t
-        client <- fromSettings { Host = ConnectHost h; Token = ConnectToken t; AdditionalHeaders = additionalHeaders }
+        client <- fromSettings { Host = ConnectHost h; Token = ConnectToken t; AdditionalHeaders = additionalHeaders; Proxy = None }
     let [<Given>] ``the server returns the following body for call to url '(.*)'`` (url : string) (body : string) =
         responses <- Map.add url body responses
     let [<Given>] ``item with ID '(.*)' in vault with ID '(.*)'`` (itemId : string) (vaultId : string) body =
@@ -157,4 +157,4 @@ type ItemRetrievalFixture() =
         fileContentResult <- client.GetFile (FileContentPath path) |> Async.RunSynchronously
     let [<Given>] ``the client is configured to use additional header '(.*)' with value '(.*)'`` key value =
         additionalHeaders <- (key, value)::additionalHeaders
-        client <- fromSettings { Host = ConnectHost host; Token = ConnectToken token; AdditionalHeaders = additionalHeaders }
+        client <- fromSettings { Host = ConnectHost host; Token = ConnectToken token; AdditionalHeaders = additionalHeaders; Proxy = None }

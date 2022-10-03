@@ -115,6 +115,13 @@ let internal operationsFromRequestProcessor requestProcessor settings =
     }
 
 let private operationsFromSettings settings =
+    let httpRequestCustomizer =
+        match settings.Proxy with
+        | None -> id
+        | Some (Proxy p) ->
+            let proxy = WebProxy(p)
+            fun (request : HttpWebRequest) -> request.Proxy <- proxy; request
+
     let requestProcessor
         {
             Url = url
@@ -123,7 +130,10 @@ let private operationsFromSettings settings =
         } = monad {
 
         if not requestStream then
-            let! response = Http.AsyncRequest(url, headers = headers)
+            let! response = Http.AsyncRequest(
+                url,
+                headers = headers,
+                customizeHttpRequest = httpRequestCustomizer)
             let body =
                 match response.Body with
                 | Text text -> text
@@ -165,10 +175,10 @@ let internal cache inner = {
 let fromSettings = operationsFromSettings >> cache >> ConnectClientFacade
 let fromSettingsWithoutCache = operationsFromSettings >> ConnectClientFacade
 
-/// Attempts to make a client instance from CONNECT_HOST and CONNECT_TOKEN
+/// Attempts to make settings  from CONNECT_HOST and CONNECT_TOKEN
 /// environment variables (OP_CONNECT_HOST and OP_CONNECT_TOKEN can be used as well).
 /// Fails if either is not set.
-let internal operationsFromEnvironmentVariables () = monad.strict {
+let settingsFromEnvironmentVariables () = monad.strict {
     let getEnvironment x =
         x
         |> Seq.map Environment.GetEnvironmentVariable
@@ -193,16 +203,17 @@ let internal operationsFromEnvironmentVariables () = monad.strict {
             Host = ConnectHost host
             Token = ConnectToken token
             AdditionalHeaders = additionalHeaders
+            Proxy = None
         }
-        |> operationsFromSettings
 }
 
 /// Attempts to make a client instance from CONNECT_HOST and CONNECT_TOKEN
 /// environment variables (OP_CONNECT_HOST and OP_CONNECT_TOKEN can be used as well).
 /// Fails if either is not set.
-let fromEnvironmentVariables =
-    operationsFromEnvironmentVariables
-    >> Result.map (cache >> ConnectClientFacade)
+let fromEnvironmentVariables () =
+    settingsFromEnvironmentVariables ()
+    |>> (operationsFromSettings >> cache >> ConnectClientFacade)
 
 let fromEnvironmentVariablesWithoutCache =
-    operationsFromEnvironmentVariables >> Result.map ConnectClientFacade
+    settingsFromEnvironmentVariables ()
+    |>> (operationsFromSettings >> ConnectClientFacade)
