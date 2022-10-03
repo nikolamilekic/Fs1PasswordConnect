@@ -62,9 +62,21 @@ type ConnectClientFacade internal (client : ConnectClientOperations) =
             | InjectPattern (vault, item, section, fieldOrFile, quoted) ->
                 let replacement =
                     match section, quoted with
-                    | Some s, true -> $"\"op://{vault}/{item}/{s}/{fieldOrFile}\""
+                    | Some s, true ->
+                        let containsSpaces =
+                            seq { vault; item; s; fieldOrFile }
+                            |> Seq.exists (fun s -> s.Contains " ")
+                        if containsSpaces then
+                            $"\"op://{vault}/{item}/{s}/{fieldOrFile}\""
+                        else $"op://{vault}/{item}/{s}/{fieldOrFile}"
                     | Some s, false -> $"op://{vault}/{item}/{s}/{fieldOrFile}"
-                    | None, true -> $"\"op://{vault}/{item}/{fieldOrFile}\""
+                    | None, true ->
+                        let containsSpaces =
+                            seq { vault; item; fieldOrFile }
+                            |> Seq.exists (fun s -> s.Contains " ")
+                        if containsSpaces then
+                            $"\"op://{vault}/{item}/{fieldOrFile}\""
+                        else $"op://{vault}/{item}/{fieldOrFile}"
                     | None, false -> $"op://{vault}/{item}/{fieldOrFile}"
 
                 let getField item = async {
