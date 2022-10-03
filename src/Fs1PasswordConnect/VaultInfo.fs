@@ -1,7 +1,6 @@
 ﻿namespace Fs1PasswordConnect
 
 open Fleece
-open Fleece.SystemTextJson
 open FSharpPlus
 open NodaTime
 
@@ -15,8 +14,8 @@ type VaultInfo = {
 } with
     static member get_Codec () =
         let instantCodec =
-            let decode = ofJson >> Result.map Instant.FromDateTimeOffset
-            let encode (x : Instant) = x.ToDateTimeOffset() |> toJson
+            let decode = ofEncoding >> Result.map Instant.FromDateTimeOffset
+            let encode (x : Instant) = x.ToDateTimeOffset() |> toEncoding
             decode <-> encode
 
         let vaultId =
