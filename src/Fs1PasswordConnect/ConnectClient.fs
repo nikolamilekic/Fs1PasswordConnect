@@ -197,13 +197,17 @@ let settingsFromEnvironmentVariables () = monad.strict {
                 then line, ""
                 else line.Substring(0, index), line.Substring(index + 1) ]
         |> Result.defaultValue []
+    let proxy =
+        getEnvironment [ "CONNECT_PROXY"; "OP_CONNECT_PROXY" ]
+        |>> (Proxy >> Some)
+        |> Result.defaultValue None
 
     return
         {
             Host = ConnectHost host
             Token = ConnectToken token
             AdditionalHeaders = additionalHeaders
-            Proxy = None
+            Proxy = proxy
         }
 }
 
