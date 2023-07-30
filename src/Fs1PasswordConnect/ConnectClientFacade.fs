@@ -1,4 +1,6 @@
-﻿namespace Fs1PasswordConnect
+﻿#nowarn "0044"
+
+namespace Fs1PasswordConnect
 
 open System
 open System.IO
@@ -177,7 +179,7 @@ and internal ConnectClientOperations = {
 }
 and ConnectClientMonad<'a> = ResultT<Async<Result<'a, ConnectError>>>
 and ConnectError =
-    | CriticalFailure of exn
+    | [<Obsolete("Critical exceptions are raised instead of being wrapped, so that more information is available")>] CriticalFailure of exn
     | UnexpectedStatusCode of int
     | DecodeError of string
     | UnauthorizedAccess
@@ -189,7 +191,7 @@ and ConnectError =
     with
     override this.ToString() =
         match this with
-        | CriticalFailure exn -> $"Critical failure: {exn.Message}"
+        | CriticalFailure exn -> $"Critical failure: {exn}"
         | UnexpectedStatusCode code -> $"Connect server returned an unexpected status code: {code}"
         | DecodeError message -> $"Connect server returned a result which could not be decoded due to the following error: {message}"
         | UnauthorizedAccess -> "Unauthorized access to Connect server"

@@ -14,11 +14,6 @@ let internal lift x : ConnectClientMonad<'a> = ResultT.lift x
 let internal hoist x : ConnectClientMonad<'a> = ResultT.hoist x
 
 let internal operationsFromRequestProcessor requestProcessor settings =
-    let requestProcessor request = monad {
-        try return! requestProcessor request |> lift
-        with exn -> return! Error (CriticalFailure exn) |> hoist
-    }
-
     let { Host = (ConnectHost host); Token = (ConnectToken token) } = settings
     let baseRequest =
         {
@@ -148,7 +143,7 @@ let private operationsFromSettings settings =
             }
     }
 
-    operationsFromRequestProcessor requestProcessor settings
+    operationsFromRequestProcessor (requestProcessor >> lift) settings
 
 let internal cacheConnectFunction (f : 'a -> ConnectClientMonad<'b>) =
     let cache = ref Map.empty

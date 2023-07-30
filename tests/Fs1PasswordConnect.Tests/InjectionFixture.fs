@@ -53,7 +53,7 @@ type InjectionFixture() =
             GetItemInfo = getItemInfo
             GetItem = getItem
             GetVaultItems = getVaultItems
-            GetFile = fun _ -> Error (CriticalFailure (Exception("Not implemented in fixture"))) |> ResultT.hoist
+            GetFile = fun _ -> failwith "Not implemented"
         }
         |> ConnectClientFacade
 

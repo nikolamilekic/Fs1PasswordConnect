@@ -1,4 +1,6 @@
-﻿namespace Fs1PasswordConnect.Tests
+﻿#nowarn "0044"
+
+namespace Fs1PasswordConnect.Tests
 
 open System
 open System.IO
@@ -31,7 +33,7 @@ type ItemRetrievalFixture() =
             | None -> failwith $"No response configured for url: {url}"
     }
     let fromSettings : _ -> ConnectClientFacade =
-        ConnectClient.operationsFromRequestProcessor requestProcessor
+        ConnectClient.operationsFromRequestProcessor (requestProcessor >> lift)
         >> ConnectClientFacade
     let mutable client =
         fromSettings { Host = ConnectHost ""; Token = ConnectToken ""; AdditionalHeaders = []; Proxy = None }
